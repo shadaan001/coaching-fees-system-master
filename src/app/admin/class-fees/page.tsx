@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAdminAuth } from '@/hooks/useAdminAuth'
+import { useRouter } from 'next/navigation'
 
 type ClassFee = {
   id: string
@@ -12,89 +13,74 @@ type ClassFee = {
 
 export default function ClassFeesPage() {
   const { loading } = useAdminAuth()
+  const router = useRouter()
 
-  const [fees, setFees] = useState<ClassFee[]>([])
+  const [data, setData] = useState<ClassFee[]>([])
   const [className, setClassName] = useState('')
   const [amount, setAmount] = useState('')
 
-  if (loading) {
-    return <div className="p-6">Checking access...</div>
-  }
-
-  async function fetchFees() {
-    const { data } = await supabase.from('class_fees').select('*')
-    setFees(data || [])
-  }
-
   useEffect(() => {
-    fetchFees()
+    async function fetchData() {
+      const { data } = await supabase.from('class_fees').select('*')
+      setData(data || [])
+    }
+    fetchData()
   }, [])
 
+  if (loading) return <div className="p-6 text-white">Loading...</div>
+
   async function addFee() {
+    if (!className || !amount) {
+      alert('Fill all fields')
+      return
+    }
+
     await supabase.from('class_fees').insert([
-      {
-        class_name: className,
-        monthly_fee: Number(amount)
-      }
+      { class_name: className, monthly_fee: Number(amount) }
     ])
 
     setClassName('')
     setAmount('')
-    fetchFees()
-  }
 
-  async function deleteFee(id: string) {
-    await supabase.from('class_fees').delete().eq('id', id)
-    fetchFees()
+    const { data } = await supabase.from('class_fees').select('*')
+    setData(data || [])
   }
 
   return (
-    <div className="p-6">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-6 text-white">
 
-      <h1 className="text-2xl font-bold mb-4">Class Fees</h1>
+      <button onClick={() => router.push('/admin/dashboard')} className="mb-4 bg-white/20 px-3 py-1 rounded">
+        ← Back
+      </button>
 
-      {/* Add */}
-      <div className="mb-6 flex gap-2">
+      <h1 className="text-2xl font-bold mb-6">Class Fees</h1>
+
+      <div className="bg-white/10 p-4 rounded mb-6 backdrop-blur-lg flex gap-2">
+
         <input
           placeholder="Class"
           value={className}
-          onChange={(e) => setClassName(e.target.value)}
-          className="border p-2"
+          onChange={e => setClassName(e.target.value)}
+          className="p-2 rounded text-black"
         />
 
         <input
           placeholder="Fee"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          className="border p-2"
+          onChange={e => setAmount(e.target.value)}
+          className="p-2 rounded text-black"
         />
 
-        <button
-          onClick={addFee}
-          className="bg-blue-500 text-white px-4"
-        >
+        <button onClick={addFee} className="bg-white text-black px-4 rounded">
           Add
         </button>
       </div>
 
-      {/* List */}
-      <ul>
-        {fees.map(f => (
-          <li key={f.id} className="border p-3 mb-2 flex justify-between">
-            <span>
-              Class {f.class_name} → ₹{f.monthly_fee}
-            </span>
-
-            <button
-              onClick={() => deleteFee(f.id)}
-              className="bg-red-500 text-white px-2"
-            >
-              Delete
-            </button>
-          </li>
-        ))}
-      </ul>
-
+      {data.map(f => (
+        <div key={f.id} className="bg-white/10 p-4 rounded mb-2 backdrop-blur-lg">
+          Class {f.class_name} → ₹{f.monthly_fee}
+        </div>
+      ))}
     </div>
   )
 }

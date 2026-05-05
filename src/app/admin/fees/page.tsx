@@ -3,18 +3,13 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAdminAuth } from '@/hooks/useAdminAuth'
+import { useRouter } from 'next/navigation'
 
 type Student = {
   id: string
   name: string
   class: string
   phone: string
-  custom_fee: number | null
-}
-
-type ClassFee = {
-  class_name: string
-  monthly_fee: number
 }
 
 type Fee = {
@@ -26,65 +21,33 @@ type Fee = {
 }
 
 export default function FeesPage() {
-
-  // ✅ CORRECT PLACE
   const { loading } = useAdminAuth()
+  const router = useRouter()
 
   const [students, setStudents] = useState<Student[]>([])
-  const [classFees, setClassFees] = useState<ClassFee[]>([])
   const [fees, setFees] = useState<Fee[]>([])
-  const [month, setMonth] = useState('')
-
-  if (loading) {
-    return <div className="p-6">Checking access...</div>
-  }
-
-  async function fetchData() {
-    const { data: studentsData } = await supabase.from('students').select('*')
-    const { data: classData } = await supabase.from('class_fees').select('*')
-    const { data: feesData } = await supabase.from('fees').select('*')
-
-    setStudents(studentsData || [])
-    setClassFees(classData || [])
-    setFees(feesData || [])
-  }
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
 
   useEffect(() => {
     fetchData()
   }, [])
 
-  function getClassFee(className: string) {
-    return classFees.find(f => f.class_name === className)?.monthly_fee || 0
+  async function fetchData() {
+    const { data: s } = await supabase.from('students').select('*')
+    const { data: f } = await supabase.from('fees').select('*')
+
+    setStudents(s || [])
+    setFees(f || [])
   }
 
-  function getFinalFee(student: Student) {
-    return student.custom_fee ?? getClassFee(student.class)
+  if (loading) return <div className="p-6 text-white">Loading...</div>
+
+  function getStudentFees(studentId: string) {
+    return fees.filter(f => f.student_id === studentId)
   }
 
-  async function generateFees() {
-    if (!month) {
-      alert('Enter month')
-      return
-    }
-
-    const records = students.map(student => ({
-      student_id: student.id,
-      month,
-      amount: getFinalFee(student),
-      status: 'pending'
-    }))
-
-    await supabase.from('fees').insert(records)
-    fetchData()
-  }
-
-  async function markPaid(id: string) {
-    await supabase.from('fees').update({ status: 'paid' }).eq('id', id)
-    fetchData()
-  }
-
-  function sendWhatsApp(student: Student, studentFees: Fee[]) {
-    const pending = studentFees.filter(f => f.status === 'pending')
+  function sendWhatsApp(student: Student) {
+    const pending = getStudentFees(student.id).filter(f => f.status === 'pending')
 
     if (pending.length === 0) {
       alert('No pending fees')
@@ -105,68 +68,93 @@ Please clear your dues.`
     window.open(url, '_blank')
   }
 
-  return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Fees System</h1>
+  async function markPaid(id: string) {
+    await supabase.from('fees').update({ status: 'paid' }).eq('id', id)
+    fetchData()
+  }
 
-      <div className="mb-6 flex gap-2">
-        <input
-          placeholder="Month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          className="border p-2"
-        />
+  return (
+    <div className="min-h-screen flex bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white">
+
+      {/* SIDEBAR */}
+      <div className="w-1/4 bg-white/10 p-4 backdrop-blur-lg">
 
         <button
-          onClick={generateFees}
-          className="bg-blue-500 text-white px-4 py-2"
+          onClick={() => router.push('/admin/dashboard')}
+          className="mb-4 bg-white/20 px-3 py-1 rounded"
         >
-          Generate Fees
+          ← Back
         </button>
+
+        <h2 className="font-bold mb-4">Students</h2>
+
+        {students.map(s => (
+          <div
+            key={s.id}
+            onClick={() => setSelectedStudent(s)}
+            className={`p-2 mb-2 rounded cursor-pointer ${
+              selectedStudent?.id === s.id ? 'bg-white/30' : 'bg-white/10'
+            }`}
+          >
+            {s.name}
+          </div>
+        ))}
       </div>
 
-      <ul>
-        {students.map(student => {
-          const studentFees = fees.filter(f => f.student_id === student.id)
-          const pendingFees = studentFees.filter(f => f.status === 'pending')
+      {/* RIGHT SIDE */}
+      <div className="flex-1 p-6">
 
-          return (
-            <li key={student.id} className="border p-4 mb-4 rounded">
-              <div className="flex justify-between">
-                <span>{student.name}</span>
+        {!selectedStudent ? (
+          <div>Select a student 👈</div>
+        ) : (
+          <div>
 
-                <button
-                  onClick={() => sendWhatsApp(student, studentFees)}
-                  className="bg-green-500 text-white px-2"
-                >
-                  WhatsApp
-                </button>
+            <div className="flex justify-between items-center mb-4">
+              <h1 className="text-xl font-bold">
+                {selectedStudent.name} (Class {selectedStudent.class})
+              </h1>
+
+              <button
+                onClick={() => sendWhatsApp(selectedStudent)}
+                className="bg-green-500 px-3 py-1 rounded"
+              >
+                WhatsApp
+              </button>
+            </div>
+
+            {/* FEES LIST */}
+            {getStudentFees(selectedStudent.id).map(f => (
+              <div key={f.id} className="flex justify-between bg-white/10 p-3 rounded mb-2">
+
+                <span>
+                  {f.month} - ₹{f.amount} - {f.status}
+                </span>
+
+                {f.status === 'pending' && (
+                  <button
+                    onClick={() => markPaid(f.id)}
+                    className="bg-blue-500 px-2 rounded"
+                  >
+                    Paid
+                  </button>
+                )}
+
               </div>
+            ))}
 
-              {studentFees.map(f => (
-                <div key={f.id} className="flex justify-between mt-2">
-                  <span>{f.month} - ₹{f.amount}</span>
+            {/* TOTAL */}
+            <div className="mt-4 text-red-300 font-semibold">
+              Total Pending: ₹{
+                getStudentFees(selectedStudent.id)
+                  .filter(f => f.status === 'pending')
+                  .reduce((sum, f) => sum + f.amount, 0)
+              }
+            </div>
 
-                  {f.status === 'pending' && (
-                    <button
-                      onClick={() => markPaid(f.id)}
-                      className="bg-blue-500 text-white px-2"
-                    >
-                      Paid
-                    </button>
-                  )}
-                </div>
-              ))}
+          </div>
+        )}
 
-              {pendingFees.length > 0 && (
-                <div className="text-red-500 mt-2">
-                  Total: ₹{pendingFees.reduce((s, p) => s + p.amount, 0)}
-                </div>
-              )}
-            </li>
-          )
-        })}
-      </ul>
+      </div>
     </div>
   )
 }

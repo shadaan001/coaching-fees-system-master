@@ -62,7 +62,7 @@ export default function HomePage() {
           </h1>
 
           <p className="text-white/70 mt-2 text-center">
-            Student & Admin Portal
+            Fee Management Portal
           </p>
 
         </div>

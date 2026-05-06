@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import Image from 'next/image'
 
 type Student = {
   id: string
@@ -51,7 +52,6 @@ export default function StudentDashboard() {
 
   const [loading, setLoading] = useState(true)
 
-  // ✅ LOAD FAMILY + STUDENT
   useEffect(() => {
     async function fetchData() {
       const phone =
@@ -62,7 +62,6 @@ export default function StudentDashboard() {
         return
       }
 
-      // ✅ ALL FAMILY STUDENTS
       const { data: familyData } = await supabase
         .from('students')
         .select('*')
@@ -70,7 +69,6 @@ export default function StudentDashboard() {
 
       setFamilyStudents(familyData || [])
 
-      // ✅ FIRST SELECT
       let currentStudentId = selectedStudentId
 
       if (
@@ -88,7 +86,6 @@ export default function StudentDashboard() {
         return
       }
 
-      // ✅ SELECTED STUDENT
       const { data: studentData, error } =
         await supabase
           .from('students')
@@ -106,7 +103,6 @@ export default function StudentDashboard() {
 
       setStudent(studentData)
 
-      // ✅ FEES
       const { data: feesData } = await supabase
         .from('fees')
         .select('*')
@@ -120,7 +116,6 @@ export default function StudentDashboard() {
     fetchData()
   }, [router, selectedStudentId])
 
-  // ✅ GET FEE
   function getFee(month: string, year: string) {
     return fees.find(
       (f) =>
@@ -129,7 +124,6 @@ export default function StudentDashboard() {
     )
   }
 
-  // ✅ TOTAL PENDING
   const totalPending = fees
     .filter((f) => f.status === 'pending')
     .reduce(
@@ -137,7 +131,6 @@ export default function StudentDashboard() {
       0
     )
 
-  // ✅ LOGOUT
   function logout() {
     localStorage.removeItem('student_phone')
 
@@ -153,148 +146,165 @@ export default function StudentDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4 md:p-6 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 p-4 md:p-8 text-white">
 
-      {/* TOP */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+      <div className="max-w-7xl mx-auto">
 
-        <div>
+        {/* TOP SECTION */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
 
-          {/* ✅ STUDENT SELECTOR */}
-          <select
-            value={selectedStudentId}
-            onChange={(e) =>
-              setSelectedStudentId(
-                e.target.value
-              )
-            }
-            className="bg-white/20 text-white p-3 rounded-xl mb-4"
-          >
-            {familyStudents.map((s) => (
-              <option
-                key={s.id}
-                value={s.id}
-                className="text-black"
+          {/* LEFT */}
+          <div className="flex items-center gap-5">
+
+            <Image
+              src="/logo.png"
+              alt="logo"
+              width={90}
+              height={90}
+              className="rounded-3xl shadow-2xl"
+            />
+
+            <div>
+
+              {/* SELECT STUDENT */}
+              <select
+                value={selectedStudentId}
+                onChange={(e) =>
+                  setSelectedStudentId(
+                    e.target.value
+                  )
+                }
+                className="bg-white/20 text-white px-4 py-3 rounded-2xl mb-4 backdrop-blur-xl border border-white/20 outline-none"
               >
-                {s.name} - Class {s.class}
-              </option>
-            ))}
-          </select>
+                {familyStudents.map((s) => (
+                  <option
+                    key={s.id}
+                    value={s.id}
+                    className="text-black"
+                  >
+                    {s.name} - Class {s.class}
+                  </option>
+                ))}
+              </select>
 
-          <h1 className="text-3xl md:text-5xl font-bold">
-            Welcome, {student?.name}
-          </h1>
+              <h1 className="text-4xl md:text-6xl font-bold">
+                Welcome, {student?.name}
+              </h1>
 
-          <p className="text-white/80 mt-2 text-lg">
-            Student Dashboard
-          </p>
+              <p className="text-white/70 text-lg mt-2">
+                Student Dashboard
+              </p>
+
+            </div>
+
+          </div>
+
+          {/* LOGOUT */}
+          <button
+            onClick={logout}
+            className="bg-white text-black px-6 py-3 rounded-2xl font-bold hover:scale-105 transition shadow-2xl"
+          >
+            Logout
+          </button>
 
         </div>
 
-        <button
-          onClick={logout}
-          className="bg-white text-black px-5 py-3 rounded-2xl font-bold hover:scale-105 transition"
-        >
-          Logout
-        </button>
+        {/* INFO CARDS */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
 
-      </div>
-
-      {/* INFO */}
-      <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 mb-6 border border-white/10">
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-
-          <div>
-            <p className="text-white/70 mb-1">
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl">
+            <p className="text-white/70 mb-2">
               Class
             </p>
 
-            <h2 className="text-2xl font-bold">
+            <h2 className="text-4xl font-bold">
               {student?.class}
             </h2>
           </div>
 
-          <div>
-            <p className="text-white/70 mb-1">
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl">
+            <p className="text-white/70 mb-2">
               Phone
             </p>
 
-            <h2 className="text-2xl font-bold">
+            <h2 className="text-3xl font-bold">
               {student?.phone}
             </h2>
           </div>
 
-          <div>
-            <p className="text-white/70 mb-1">
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl">
+            <p className="text-white/70 mb-2">
               Total Pending
             </p>
 
-            <h2 className="text-3xl font-bold text-yellow-300">
+            <h2 className="text-4xl font-bold text-yellow-300">
               ₹{totalPending}
             </h2>
           </div>
 
         </div>
-      </div>
 
-      {/* FEES */}
-      <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/10">
+        {/* FEES SECTION */}
+        <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl">
 
-        <h2 className="text-3xl font-bold mb-6">
-          Fees Status
-        </h2>
+          <h2 className="text-4xl font-bold mb-8">
+            Fees Status
+          </h2>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-          {months.map(({ month, year }) => {
-            const fee = getFee(month, year)
+            {months.map(({ month, year }) => {
+              const fee = getFee(month, year)
 
-            const status =
-              fee?.status || 'pending'
+              const status =
+                fee?.status || 'pending'
 
-            const amount =
-              fee?.amount || 0
+              const amount =
+                fee?.amount || 0
 
-            return (
-              <div
-                key={`${month}-${year}`}
-                className="bg-white/10 rounded-2xl p-5 border border-white/10"
-              >
+              return (
+                <div
+                  key={`${month}-${year}`}
+                  className="bg-white/10 backdrop-blur-lg border border-white/10 rounded-3xl p-6 hover:scale-[1.02] transition duration-300"
+                >
 
-                <div className="flex justify-between items-center mb-4">
+                  <div className="flex justify-between items-center mb-5">
 
-                  <div>
-                    <h3 className="text-2xl font-bold">
-                      {month}
-                    </h3>
+                    <div>
 
-                    <p className="text-white/70">
-                      {year}
-                    </p>
+                      <h3 className="text-3xl font-bold">
+                        {month}
+                      </h3>
+
+                      <p className="text-white/70 text-lg">
+                        {year}
+                      </p>
+
+                    </div>
+
+                    <div
+                      className={`px-5 py-3 rounded-2xl font-bold text-sm shadow-xl ${
+                        status === 'paid'
+                          ? 'bg-green-500'
+                          : 'bg-red-500'
+                      }`}
+                    >
+                      {status.toUpperCase()}
+                    </div>
+
                   </div>
 
-                  <div
-                    className={`px-4 py-2 rounded-xl font-bold ${
-                      status === 'paid'
-                        ? 'bg-green-500'
-                        : 'bg-red-500'
-                    }`}
-                  >
-                    {status.toUpperCase()}
-                  </div>
+                  <p className="text-4xl font-bold">
+                    ₹{amount}
+                  </p>
 
                 </div>
+              )
+            })}
 
-                <p className="text-3xl font-bold">
-                  ₹{amount}
-                </p>
-
-              </div>
-            )
-          })}
-
+          </div>
         </div>
+
       </div>
     </div>
   )

@@ -13,11 +13,10 @@ export default function HomePage() {
   const [password, setPassword] = useState('')
   const [phone, setPhone] = useState('')
 
-  // 🔵 ADMIN LOGIN
   async function handleAdminLogin() {
     const { error } = await supabase.auth.signInWithPassword({
       email,
-      password
+      password,
     })
 
     if (error) {
@@ -28,56 +27,55 @@ export default function HomePage() {
     router.push('/admin/dashboard')
   }
 
-  // 🟢 STUDENT LOGIN
   async function handleStudentLogin() {
-    if (!phone) {
-      alert('Enter phone number')
-      return
-    }
-
-    // ✅ FIND ALL STUDENTS WITH SAME PHONE
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('students')
       .select('*')
-      .eq('phone', phone.trim())
+      .eq('phone', phone)
 
-    if (error || !data || data.length === 0) {
+    if (!data || data.length === 0) {
       alert('Student not found')
       return
     }
 
-    // ✅ SAVE PHONE
-    localStorage.setItem('student_phone', phone.trim())
+    localStorage.setItem('student_phone', phone)
 
-    // ✅ GO TO STUDENT DASHBOARD
     router.push('/student/dashboard')
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 p-5">
 
-      <div className="w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 shadow-2xl text-white">
+      <div className="w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-2xl p-8 text-white">
 
-        {/* TITLE */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-2">
+        {/* LOGO */}
+        <div className="flex flex-col items-center mb-8">
+
+          <img
+            src="/logo.png"
+            alt="logo"
+            className="w-28 h-28 rounded-3xl shadow-2xl object-cover mb-4"
+          />
+
+          <h1 className="text-5xl font-bold text-center">
             Coaching System
           </h1>
 
-          <p className="text-white/70">
+          <p className="text-white/70 mt-2 text-center">
             Student & Admin Portal
           </p>
+
         </div>
 
         {/* ROLE SWITCH */}
-        <div className="flex bg-white/10 p-1 rounded-2xl mb-6">
+        <div className="flex bg-white/10 rounded-2xl p-1 mb-6">
 
           <button
             onClick={() => setRole('admin')}
-            className={`flex-1 py-3 rounded-xl font-semibold transition-all duration-300 ${
+            className={`flex-1 py-3 rounded-xl font-bold transition ${
               role === 'admin'
-                ? 'bg-white text-black shadow-lg'
-                : 'text-white/70 hover:bg-white/10'
+                ? 'bg-white text-black'
+                : 'text-white'
             }`}
           >
             Admin
@@ -85,10 +83,10 @@ export default function HomePage() {
 
           <button
             onClick={() => setRole('student')}
-            className={`flex-1 py-3 rounded-xl font-semibold transition-all duration-300 ${
+            className={`flex-1 py-3 rounded-xl font-bold transition ${
               role === 'student'
-                ? 'bg-white text-black shadow-lg'
-                : 'text-white/70 hover:bg-white/10'
+                ? 'bg-white text-black'
+                : 'text-white'
             }`}
           >
             Student
@@ -96,7 +94,7 @@ export default function HomePage() {
 
         </div>
 
-        {/* ADMIN LOGIN */}
+        {/* ADMIN */}
         {role === 'admin' && (
           <div className="space-y-4">
 
@@ -105,7 +103,7 @@ export default function HomePage() {
               placeholder="Admin Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-4 rounded-2xl bg-white/10 border border-white/20 placeholder-white/50 outline-none focus:border-white transition"
+              className="w-full p-4 rounded-2xl bg-white/10 border border-white/20 outline-none"
             />
 
             <input
@@ -113,12 +111,12 @@ export default function HomePage() {
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-4 rounded-2xl bg-white/10 border border-white/20 placeholder-white/50 outline-none focus:border-white transition"
+              className="w-full p-4 rounded-2xl bg-white/10 border border-white/20 outline-none"
             />
 
             <button
               onClick={handleAdminLogin}
-              className="w-full py-4 rounded-2xl bg-white text-black font-bold hover:scale-105 transition duration-300 shadow-xl"
+              className="w-full py-4 rounded-2xl bg-white text-black font-bold hover:scale-105 transition"
             >
               Login as Admin
             </button>
@@ -126,7 +124,7 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* STUDENT LOGIN */}
+        {/* STUDENT */}
         {role === 'student' && (
           <div className="space-y-4">
 
@@ -134,12 +132,12 @@ export default function HomePage() {
               placeholder="Phone Number"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="w-full p-4 rounded-2xl bg-white/10 border border-white/20 placeholder-white/50 outline-none focus:border-white transition"
+              className="w-full p-4 rounded-2xl bg-white/10 border border-white/20 outline-none"
             />
 
             <button
               onClick={handleStudentLogin}
-              className="w-full py-4 rounded-2xl bg-white text-black font-bold hover:scale-105 transition duration-300 shadow-xl"
+              className="w-full py-4 rounded-2xl bg-white text-black font-bold hover:scale-105 transition"
             >
               Login as Student
             </button>

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useAdminAuth } from '@/hooks/useAdminAuth'
 import { useRouter } from 'next/navigation'
 
 type Student = {
@@ -10,14 +9,14 @@ type Student = {
   name: string
   phone: string
   class: string
-  custom_fee: number | null
+  custom_fee?: number
 }
 
 export default function StudentsPage() {
-  const { loading } = useAdminAuth()
   const router = useRouter()
 
   const [students, setStudents] = useState<Student[]>([])
+
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [cls, setCls] = useState('')
@@ -29,71 +28,184 @@ export default function StudentsPage() {
     fetchStudents()
   }, [])
 
+  // ✅ FETCH STUDENTS
   async function fetchStudents() {
-    const { data } = await supabase.from('students').select('*')
+    const { data } = await supabase
+      .from('students')
+      .select('*')
+      .order('name')
+
     setStudents(data || [])
   }
 
-  if (loading) return <div className="p-6 text-white">Loading...</div>
-
-  // ➕ ADD STUDENT
+  // ✅ ADD STUDENT
   async function addStudent() {
     if (!name || !phone || !cls) {
       alert('Fill all fields')
       return
     }
 
-    await supabase.from('students').insert([
-      {
-        name,
-        phone,
-        class: cls,
-        custom_fee: customFee ? Number(customFee) : null
-      }
-    ])
+    const { data: studentData, error } = await supabase
+      .from('students')
+      .insert([
+        {
+          name,
+          phone,
+          class: cls,
+          custom_fee: customFee
+            ? Number(customFee)
+            : null
+        }
+      ])
+      .select()
+      .single()
 
-    setName('')
-    setPhone('')
-    setCls('')
-    setCustomFee('')
+    if (error || !studentData) {
+      alert('Error adding student')
+      return
+    }
+
+    // ✅ GET MONTHLY FEE
+    let monthlyFee = 0
+
+    if (customFee) {
+      monthlyFee = Number(customFee)
+    } else {
+      const { data: classFee } = await supabase
+        .from('class_fees')
+        .select('*')
+        .eq('class_name', cls)
+        .single()
+
+      monthlyFee = classFee?.monthly_fee || 0
+    }
+
+    // ✅ SESSION MONTHS
+    const months = [
+      { month: 'April', year: '2026' },
+      { month: 'May', year: '2026' },
+      { month: 'June', year: '2026' },
+      { month: 'July', year: '2026' },
+      { month: 'August', year: '2026' },
+      { month: 'September', year: '2026' },
+      { month: 'October', year: '2026' },
+      { month: 'November', year: '2026' },
+      { month: 'December', year: '2026' },
+      { month: 'January', year: '2027' },
+      { month: 'February', year: '2027' },
+      { month: 'March', year: '2027' }
+    ]
+
+    // ✅ AUTO GENERATE FEES
+    const feeRows = months.map((m) => ({
+      student_id: studentData.id,
+      month: m.month,
+      year: m.year,
+      amount: monthlyFee,
+      status: 'pending'
+    }))
+
+    await supabase
+      .from('fees')
+      .insert(feeRows)
+
+    alert('Student Added Successfully')
+
+    resetForm()
 
     fetchStudents()
   }
 
-  // ❌ DELETE
-  async function deleteStudent(id: string) {
-    if (!confirm('Delete this student?')) return
-
-    await supabase.from('students').delete().eq('id', id)
-    fetchStudents()
-  }
-
-  // ✏️ START EDIT
+  // ✅ START EDIT
   function startEdit(student: Student) {
     setEditingId(student.id)
+
     setName(student.name)
     setPhone(student.phone)
     setCls(student.class)
-    setCustomFee(student.custom_fee?.toString() || '')
+
+    setCustomFee(
+      student.custom_fee
+        ? String(student.custom_fee)
+        : ''
+    )
   }
 
-  // 💾 SAVE EDIT
-  async function saveEdit(id: string) {
+  // ✅ UPDATE STUDENT + UPDATE FEES
+  async function updateStudent() {
+    if (!editingId) return
+
+    // ✅ Update Student Table
     await supabase
       .from('students')
       .update({
         name,
         phone,
         class: cls,
-        custom_fee: customFee ? Number(customFee) : null
+        custom_fee: customFee
+          ? Number(customFee)
+          : null
       })
-      .eq('id', id)
+      .eq('id', editingId)
 
+    // ✅ GET UPDATED FEE
+    let updatedFee = 0
+
+    if (customFee) {
+      updatedFee = Number(customFee)
+    } else {
+      const { data: classFee } = await supabase
+        .from('class_fees')
+        .select('*')
+        .eq('class_name', cls)
+        .single()
+
+      updatedFee = classFee?.monthly_fee || 0
+    }
+
+    // ✅ UPDATE ALL PENDING FEES
+    await supabase
+      .from('fees')
+      .update({
+        amount: updatedFee
+      })
+      .eq('student_id', editingId)
+      .eq('status', 'pending')
+
+    alert('Student Updated Successfully')
+
+    resetForm()
+
+    fetchStudents()
+  }
+
+  // ✅ RESET FORM
+  function resetForm() {
     setEditingId(null)
+
     setName('')
     setPhone('')
     setCls('')
     setCustomFee('')
+  }
+
+  // ✅ DELETE STUDENT
+  async function deleteStudent(id: string) {
+    const confirmDelete = confirm(
+      'Delete this student?'
+    )
+
+    if (!confirmDelete) return
+
+    await supabase
+      .from('fees')
+      .delete()
+      .eq('student_id', id)
+
+    await supabase
+      .from('students')
+      .delete()
+      .eq('id', id)
 
     fetchStudents()
   }
@@ -101,113 +213,140 @@ export default function StudentsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-6 text-white">
 
-      {/* BACK */}
+      {/* BACK BUTTON */}
       <button
-        onClick={() => router.push('/admin/dashboard')}
-        className="mb-4 bg-white/20 px-3 py-1 rounded"
+        onClick={() =>
+          router.push('/admin/dashboard')
+        }
+        className="mb-6 bg-white/20 hover:bg-white/30 px-5 py-2 rounded-xl"
       >
         ← Back
       </button>
 
-      <h1 className="text-2xl font-bold mb-6">Students</h1>
+      <h1 className="text-4xl font-bold mb-8">
+        Students
+      </h1>
 
-      {/* ADD FORM */}
-      <div className="bg-white/10 p-4 rounded mb-6 backdrop-blur-lg flex gap-2 flex-wrap">
+      {/* FORM */}
+      <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 mb-8 grid md:grid-cols-5 gap-4">
 
         <input
           placeholder="Name"
           value={name}
-          onChange={e => setName(e.target.value)}
-          className="p-2 rounded text-black"
+          onChange={(e) =>
+            setName(e.target.value)
+          }
+          className="bg-white/20 p-3 rounded-xl outline-none"
         />
 
         <input
           placeholder="Phone"
           value={phone}
-          onChange={e => setPhone(e.target.value)}
-          className="p-2 rounded text-black"
+          onChange={(e) =>
+            setPhone(e.target.value)
+          }
+          className="bg-white/20 p-3 rounded-xl outline-none"
         />
 
         <input
           placeholder="Class"
           value={cls}
-          onChange={e => setCls(e.target.value)}
-          className="p-2 rounded text-black"
+          onChange={(e) =>
+            setCls(e.target.value)
+          }
+          className="bg-white/20 p-3 rounded-xl outline-none"
         />
 
         <input
-          placeholder="Custom Fee"
+          placeholder="Custom Fee (optional)"
           value={customFee}
-          onChange={e => setCustomFee(e.target.value)}
-          className="p-2 rounded text-black"
+          onChange={(e) =>
+            setCustomFee(e.target.value)
+          }
+          className="bg-white/20 p-3 rounded-xl outline-none"
         />
 
-        <button
-          onClick={addStudent}
-          className="bg-white text-black px-4 rounded"
-        >
-          Add
-        </button>
+        {editingId ? (
+          <div className="flex gap-2">
+
+            <button
+              onClick={updateStudent}
+              className="flex-1 bg-yellow-500 hover:bg-yellow-600 rounded-xl font-bold"
+            >
+              Save
+            </button>
+
+            <button
+              onClick={resetForm}
+              className="flex-1 bg-gray-500 hover:bg-gray-600 rounded-xl font-bold"
+            >
+              Cancel
+            </button>
+
+          </div>
+        ) : (
+          <button
+            onClick={addStudent}
+            className="bg-green-500 hover:bg-green-600 rounded-xl font-bold"
+          >
+            Add Student
+          </button>
+        )}
+
       </div>
 
-      {/* STUDENTS LIST */}
-      {students.map(s => (
-        <div key={s.id} className="bg-white/10 p-4 rounded mb-4 backdrop-blur-lg">
+      {/* STUDENT CARDS */}
+      <div className="grid md:grid-cols-2 gap-6">
 
-          {editingId === s.id ? (
-            <>
-              <div className="flex gap-2 flex-wrap mb-2">
+        {students.map((student) => (
+          <div
+            key={student.id}
+            className="bg-white/10 backdrop-blur-lg rounded-3xl p-8"
+          >
+            <h2 className="text-4xl font-bold mb-4">
+              {student.name}
+            </h2>
 
-                <input value={name} onChange={e => setName(e.target.value)} className="p-2 rounded text-black" />
-                <input value={phone} onChange={e => setPhone(e.target.value)} className="p-2 rounded text-black" />
-                <input value={cls} onChange={e => setCls(e.target.value)} className="p-2 rounded text-black" />
-                <input value={customFee} onChange={e => setCustomFee(e.target.value)} className="p-2 rounded text-black" />
+            <p className="text-2xl opacity-90">
+              📚 Class: {student.class}
+            </p>
 
-              </div>
+            <p className="text-2xl opacity-90 mt-2">
+              📱 {student.phone}
+            </p>
+
+            <p className="text-2xl opacity-90 mt-2">
+              💰 Fee:{' '}
+              {student.custom_fee
+                ? `₹${student.custom_fee}`
+                : 'Default'}
+            </p>
+
+            <div className="flex gap-4 mt-6">
 
               <button
-                onClick={() => saveEdit(s.id)}
-                className="bg-green-500 px-3 py-1 rounded mr-2"
+                onClick={() =>
+                  startEdit(student)
+                }
+                className="bg-blue-500 hover:bg-blue-600 px-5 py-2 rounded-xl"
               >
-                Save
+                Edit
               </button>
 
               <button
-                onClick={() => setEditingId(null)}
-                className="bg-gray-400 px-3 py-1 rounded"
+                onClick={() =>
+                  deleteStudent(student.id)
+                }
+                className="bg-red-500 hover:bg-red-600 px-5 py-2 rounded-xl"
               >
-                Cancel
+                Delete
               </button>
-            </>
-          ) : (
-            <>
-              <div className="font-bold">{s.name} ({s.class})</div>
-              <div>{s.phone}</div>
-              <div>Fee: {s.custom_fee ? `₹${s.custom_fee}` : 'Default'}</div>
 
-              <div className="mt-2 flex gap-2">
+            </div>
+          </div>
+        ))}
 
-                <button
-                  onClick={() => startEdit(s)}
-                  className="bg-yellow-400 text-black px-3 py-1 rounded"
-                >
-                  Edit
-                </button>
-
-                <button
-                  onClick={() => deleteStudent(s.id)}
-                  className="bg-red-500 px-3 py-1 rounded"
-                >
-                  Delete
-                </button>
-
-              </div>
-            </>
-          )}
-
-        </div>
-      ))}
-
+      </div>
     </div>
   )
 }

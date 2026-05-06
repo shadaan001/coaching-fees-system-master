@@ -13,10 +13,10 @@ export default function HomePage() {
   const [password, setPassword] = useState('')
   const [phone, setPhone] = useState('')
 
-  // 🔵 Admin Login
+  // 🔵 ADMIN LOGIN
   async function handleAdminLogin() {
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email,
       password
     })
 
@@ -28,47 +28,56 @@ export default function HomePage() {
     router.push('/admin/dashboard')
   }
 
-  // 🟢 Student Login (FIXED)
+  // 🟢 STUDENT LOGIN
   async function handleStudentLogin() {
-    const cleanPhone = phone.trim()
-
-    if (!cleanPhone) {
+    if (!phone) {
       alert('Enter phone number')
       return
     }
 
+    // ✅ FIND ALL STUDENTS WITH SAME PHONE
     const { data, error } = await supabase
       .from('students')
       .select('*')
-      .eq('phone', cleanPhone)
-      .maybeSingle() // ✅ safer
+      .eq('phone', phone.trim())
 
-    if (error || !data) {
+    if (error || !data || data.length === 0) {
       alert('Student not found')
       return
     }
 
-    // ✅ IMPORTANT: SAME KEY AS DASHBOARD
-    localStorage.setItem('student_phone', cleanPhone)
+    // ✅ SAVE PHONE
+    localStorage.setItem('student_phone', phone.trim())
 
+    // ✅ GO TO STUDENT DASHBOARD
     router.push('/student/dashboard')
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 px-4">
 
-      <div className="bg-white/10 backdrop-blur-lg p-8 rounded-2xl shadow-2xl w-[350px] text-white">
+      <div className="w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 shadow-2xl text-white">
 
-        <h1 className="text-2xl font-bold text-center mb-6">
-          Coaching System
-        </h1>
+        {/* TITLE */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold mb-2">
+            Coaching System
+          </h1>
 
-        {/* 🔘 Role Switch */}
-        <div className="flex mb-6 bg-white/20 rounded-lg p-1">
+          <p className="text-white/70">
+            Student & Admin Portal
+          </p>
+        </div>
+
+        {/* ROLE SWITCH */}
+        <div className="flex bg-white/10 p-1 rounded-2xl mb-6">
+
           <button
             onClick={() => setRole('admin')}
-            className={`flex-1 py-2 rounded ${
-              role === 'admin' ? 'bg-white text-black' : ''
+            className={`flex-1 py-3 rounded-xl font-semibold transition-all duration-300 ${
+              role === 'admin'
+                ? 'bg-white text-black shadow-lg'
+                : 'text-white/70 hover:bg-white/10'
             }`}
           >
             Admin
@@ -76,22 +85,27 @@ export default function HomePage() {
 
           <button
             onClick={() => setRole('student')}
-            className={`flex-1 py-2 rounded ${
-              role === 'student' ? 'bg-white text-black' : ''
+            className={`flex-1 py-3 rounded-xl font-semibold transition-all duration-300 ${
+              role === 'student'
+                ? 'bg-white text-black shadow-lg'
+                : 'text-white/70 hover:bg-white/10'
             }`}
           >
             Student
           </button>
+
         </div>
 
-        {/* 🔵 ADMIN FORM */}
+        {/* ADMIN LOGIN */}
         {role === 'admin' && (
-          <>
+          <div className="space-y-4">
+
             <input
-              placeholder="Email"
+              type="email"
+              placeholder="Admin Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full mb-3 p-2 rounded bg-white/20 placeholder-white outline-none"
+              className="w-full p-4 rounded-2xl bg-white/10 border border-white/20 placeholder-white/50 outline-none focus:border-white transition"
             />
 
             <input
@@ -99,35 +113,38 @@ export default function HomePage() {
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full mb-4 p-2 rounded bg-white/20 placeholder-white outline-none"
+              className="w-full p-4 rounded-2xl bg-white/10 border border-white/20 placeholder-white/50 outline-none focus:border-white transition"
             />
 
             <button
               onClick={handleAdminLogin}
-              className="w-full bg-white text-black py-2 rounded font-semibold hover:scale-105 transition"
+              className="w-full py-4 rounded-2xl bg-white text-black font-bold hover:scale-105 transition duration-300 shadow-xl"
             >
               Login as Admin
             </button>
-          </>
+
+          </div>
         )}
 
-        {/* 🟢 STUDENT FORM */}
+        {/* STUDENT LOGIN */}
         {role === 'student' && (
-          <>
+          <div className="space-y-4">
+
             <input
               placeholder="Phone Number"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="w-full mb-4 p-2 rounded bg-white/20 placeholder-white outline-none"
+              className="w-full p-4 rounded-2xl bg-white/10 border border-white/20 placeholder-white/50 outline-none focus:border-white transition"
             />
 
             <button
               onClick={handleStudentLogin}
-              className="w-full bg-white text-black py-2 rounded font-semibold hover:scale-105 transition"
+              className="w-full py-4 rounded-2xl bg-white text-black font-bold hover:scale-105 transition duration-300 shadow-xl"
             >
               Login as Student
             </button>
-          </>
+
+          </div>
         )}
 
       </div>

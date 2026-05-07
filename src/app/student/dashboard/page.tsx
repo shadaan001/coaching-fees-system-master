@@ -10,6 +10,7 @@ type Student = {
   name: string
   class: string
   phone: string
+  custom_fee?: number | null
 }
 
 type Fee = {
@@ -19,6 +20,11 @@ type Fee = {
   year: string
   amount: number
   status: string
+}
+
+type ClassFee = {
+  class_name: string
+  monthly_fee: number
 }
 
 const months = [
@@ -50,10 +56,13 @@ export default function StudentDashboard() {
 
   const [fees, setFees] = useState<Fee[]>([])
 
+  const [classFees, setClassFees] = useState<ClassFee[]>([])
+
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function fetchData() {
+
       const phone =
         localStorage.getItem('student_phone')
 
@@ -62,6 +71,7 @@ export default function StudentDashboard() {
         return
       }
 
+      // FAMILY STUDENTS
       const { data: familyData } = await supabase
         .from('students')
         .select('*')
@@ -86,14 +96,15 @@ export default function StudentDashboard() {
         return
       }
 
-      const { data: studentData, error } =
+      // CURRENT STUDENT
+      const { data: studentData } =
         await supabase
           .from('students')
           .select('*')
           .eq('id', currentStudentId)
           .maybeSingle()
 
-      if (error || !studentData) {
+      if (!studentData) {
         alert('Student not found')
 
         router.push('/')
@@ -103,6 +114,7 @@ export default function StudentDashboard() {
 
       setStudent(studentData)
 
+      // FEES
       const { data: feesData } = await supabase
         .from('fees')
         .select('*')
@@ -110,10 +122,19 @@ export default function StudentDashboard() {
 
       setFees(feesData || [])
 
+      // CLASS FEES
+      const { data: classFeesData } =
+        await supabase
+          .from('class_fees')
+          .select('*')
+
+      setClassFees(classFeesData || [])
+
       setLoading(false)
     }
 
     fetchData()
+
   }, [router, selectedStudentId])
 
   function getFee(month: string, year: string) {
@@ -124,12 +145,32 @@ export default function StudentDashboard() {
     )
   }
 
-  const totalPending = fees
-    .filter((f) => f.status === 'pending')
-    .reduce(
-      (sum, fee) => sum + fee.amount,
-      0
-    )
+  // FIXED TOTAL PENDING
+  const totalPending = student
+    ? months.reduce((sum, { month, year }) => {
+
+        const fee = getFee(month, year)
+
+        const classFee = classFees.find(
+          (f) =>
+            String(f.class_name).trim() ===
+            String(student.class).trim()
+        )
+
+        const amount =
+          fee?.amount ||
+          student.custom_fee ||
+          classFee?.monthly_fee ||
+          1200
+
+        if (!fee || fee.status === 'pending') {
+          return sum + amount
+        }
+
+        return sum
+
+      }, 0)
+    : 0
 
   function logout() {
     localStorage.removeItem('student_phone')
@@ -150,10 +191,9 @@ export default function StudentDashboard() {
 
       <div className="max-w-7xl mx-auto">
 
-        {/* TOP SECTION */}
+        {/* TOP */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
 
-          {/* LEFT */}
           <div className="flex items-center gap-5">
 
             <Image
@@ -166,7 +206,7 @@ export default function StudentDashboard() {
 
             <div>
 
-              {/* SELECT STUDENT */}
+              {/* STUDENT SELECT */}
               <select
                 value={selectedStudentId}
                 onChange={(e) =>
@@ -199,7 +239,6 @@ export default function StudentDashboard() {
 
           </div>
 
-          {/* LOGOUT */}
           <button
             onClick={logout}
             className="bg-white text-black px-6 py-3 rounded-2xl font-bold hover:scale-105 transition shadow-2xl"
@@ -209,10 +248,11 @@ export default function StudentDashboard() {
 
         </div>
 
-        {/* INFO CARDS */}
+        {/* INFO */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
 
           <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl">
+
             <p className="text-white/70 mb-2">
               Class
             </p>
@@ -220,9 +260,11 @@ export default function StudentDashboard() {
             <h2 className="text-4xl font-bold">
               {student?.class}
             </h2>
+
           </div>
 
           <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl">
+
             <p className="text-white/70 mb-2">
               Phone
             </p>
@@ -230,9 +272,11 @@ export default function StudentDashboard() {
             <h2 className="text-3xl font-bold">
               {student?.phone}
             </h2>
+
           </div>
 
           <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl">
+
             <p className="text-white/70 mb-2">
               Total Pending
             </p>
@@ -240,11 +284,12 @@ export default function StudentDashboard() {
             <h2 className="text-4xl font-bold text-yellow-300">
               ₹{totalPending}
             </h2>
+
           </div>
 
         </div>
 
-        {/* FEES SECTION */}
+        {/* FEES */}
         <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl">
 
           <h2 className="text-4xl font-bold mb-8">
@@ -254,13 +299,23 @@ export default function StudentDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
             {months.map(({ month, year }) => {
+
               const fee = getFee(month, year)
 
               const status =
                 fee?.status || 'pending'
 
+              const classFee = classFees.find(
+                (f) =>
+                  String(f.class_name).trim() ===
+                  String(student?.class).trim()
+              )
+
               const amount =
-                fee?.amount || 0
+                fee?.amount ||
+                student?.custom_fee ||
+                classFee?.monthly_fee ||
+                1200
 
               return (
                 <div
@@ -303,6 +358,7 @@ export default function StudentDashboard() {
             })}
 
           </div>
+
         </div>
 
       </div>

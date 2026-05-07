@@ -10,7 +10,7 @@ type Student = {
   name: string
   class: string
   phone: string
- custom_fee: number | null
+  custom_fee: number | null
 }
 
 type Fee = {
@@ -143,7 +143,8 @@ export default function FeesPage() {
       await supabase
         .from('fees')
         .update({
-          status: 'paid'
+          status: 'paid',
+          amount: getStudentFee(selectedStudent)
         })
         .eq('id', existingFee.id)
     } else {
@@ -173,7 +174,8 @@ export default function FeesPage() {
       await supabase
         .from('fees')
         .update({
-          status: 'pending'
+          status: 'pending',
+          amount: getStudentFee(selectedStudent)
         })
         .eq('id', existingFee.id)
     } else {
@@ -210,23 +212,24 @@ export default function FeesPage() {
     window.open(url, '_blank')
   }
 
-  const totalPending = months.reduce(
-    (sum, { month, year }) => {
-      const fee = getMonthFee(month, year)
+  const totalPending = selectedStudent
+    ? months.reduce(
+        (sum, { month, year }) => {
+          const fee = getMonthFee(month, year)
 
-      if (!fee || fee.status === 'pending') {
-        return (
-          sum +
-          (selectedStudent
-            ? getStudentFee(selectedStudent)
-            : 0)
-        )
-      }
+          const amount =
+            fee?.amount ||
+            getStudentFee(selectedStudent)
 
-      return sum
-    },
-    0
-  )
+          if (!fee || fee.status === 'pending') {
+            return sum + amount
+          }
+
+          return sum
+        },
+        0
+      )
+    : 0
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white flex flex-col md:flex-row">

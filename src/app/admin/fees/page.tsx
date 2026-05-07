@@ -74,7 +74,11 @@ export default function FeesPage() {
     setFees(feesData || [])
     setClassFees(classFeesData || [])
 
-    if (studentsData && studentsData.length > 0) {
+    if (
+      studentsData &&
+      studentsData.length > 0 &&
+      !selectedStudent
+    ) {
       const firstClass = studentsData[0].class
 
       setSelectedClass(firstClass)
@@ -88,12 +92,12 @@ export default function FeesPage() {
   }
 
   useEffect(() => {
-    async function loadData() {
-      await fetchData()
-    }
+  async function loadData() {
+    await fetchData()
+  }
 
-    loadData()
-  }, [])
+  loadData()
+}, [])
 
   if (loading) {
     return (
@@ -111,16 +115,30 @@ export default function FeesPage() {
     (s) => s.class === selectedClass
   )
 
+  // ✅ FIXED FEE FUNCTION
   function getStudentFee(student: Student) {
-    if (student.custom_fee) {
-      return student.custom_fee
+
+    // custom fee first
+    if (
+      student.custom_fee !== null &&
+      student.custom_fee !== undefined
+    ) {
+      return Number(student.custom_fee)
     }
 
+    // class fee lookup
     const classFee = classFees.find(
-      (f) => f.class_name === student.class
+      (f) =>
+        String(f.class_name).trim() ===
+        String(student.class).trim()
     )
 
-    return classFee?.monthly_fee || 0
+    if (classFee?.monthly_fee) {
+      return Number(classFee.monthly_fee)
+    }
+
+    // fallback
+    return 1200
   }
 
   function getMonthFee(month: string, year: string) {
@@ -139,12 +157,14 @@ export default function FeesPage() {
 
     const existingFee = getMonthFee(month, year)
 
+    const amount = getStudentFee(selectedStudent)
+
     if (existingFee) {
       await supabase
         .from('fees')
         .update({
           status: 'paid',
-          amount: getStudentFee(selectedStudent)
+          amount
         })
         .eq('id', existingFee.id)
     } else {
@@ -153,13 +173,13 @@ export default function FeesPage() {
           student_id: selectedStudent.id,
           month,
           year,
-          amount: getStudentFee(selectedStudent),
+          amount,
           status: 'paid'
         }
       ])
     }
 
-    fetchData()
+    await fetchData()
   }
 
   async function markPending(
@@ -170,12 +190,14 @@ export default function FeesPage() {
 
     const existingFee = getMonthFee(month, year)
 
+    const amount = getStudentFee(selectedStudent)
+
     if (existingFee) {
       await supabase
         .from('fees')
         .update({
           status: 'pending',
-          amount: getStudentFee(selectedStudent)
+          amount
         })
         .eq('id', existingFee.id)
     } else {
@@ -184,13 +206,13 @@ export default function FeesPage() {
           student_id: selectedStudent.id,
           month,
           year,
-          amount: getStudentFee(selectedStudent),
+          amount,
           status: 'pending'
         }
       ])
     }
 
-    fetchData()
+    await fetchData()
   }
 
   function sendSingleMonth(
@@ -234,7 +256,6 @@ export default function FeesPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white flex flex-col md:flex-row">
 
-      {/* LEFT SIDEBAR */}
       <div className="w-full md:w-[300px] bg-black/10 backdrop-blur-lg border-r border-white/10 p-4">
 
         <button
@@ -246,9 +267,7 @@ export default function FeesPage() {
           ← Back
         </button>
 
-        {/* CLASS DROPDOWN */}
         <div className="mb-6">
-
           <label className="block text-sm mb-2 text-white/70">
             Select Class
           </label>
@@ -283,7 +302,6 @@ export default function FeesPage() {
           </select>
         </div>
 
-        {/* STUDENTS */}
         <h1 className="text-xl font-bold mb-3">
           Students
         </h1>
@@ -314,7 +332,6 @@ export default function FeesPage() {
         </div>
       </div>
 
-      {/* RIGHT SIDE */}
       <div className="flex-1 p-4 md:p-8">
 
         {selectedStudent && (
@@ -334,7 +351,6 @@ export default function FeesPage() {
               </div>
             </div>
 
-            {/* MONTH CARDS */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
               {months.map(({ month, year }) => {

@@ -59,7 +59,6 @@ export default function FeesPage() {
   const [selectedStudent, setSelectedStudent] =
     useState<Student | null>(null)
 
-  // 🔥 ONLY CURRENT REAL MONTHS
   const currentDate = new Date()
 
   const currentMonthIndex =
@@ -433,7 +432,6 @@ NAS FEES RECORDS`
                   const fee =
                     getMonthFee(month, year)
 
-                  // 🔥 ALWAYS LIVE STUDENT FEE
                   const amount =
                     getStudentFee(selectedStudent)
 
@@ -474,36 +472,52 @@ NAS FEES RECORDS`
 
                       <div className="flex flex-wrap gap-3 mt-8">
 
-                        <button
-                          onClick={() =>
-                            markPaid(month, year)
-                          }
-                          className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 rounded-2xl font-bold transition"
-                        >
-                          Mark Paid
-                        </button>
+                        {status !== 'paid' ? (
 
-                        <button
-                          onClick={() =>
-                            markPending(month, year)
-                          }
-                          className="flex-1 py-4 bg-red-600 hover:bg-red-700 rounded-2xl font-bold transition"
-                        >
-                          Mark Pending
-                        </button>
+                          <>
 
-                        <button
-                          onClick={() =>
-                            sendSingleMonth(
-                              month,
-                              year,
-                              amount
-                            )
-                          }
-                          className="flex-1 py-4 bg-cyan-600 hover:bg-cyan-700 rounded-2xl font-bold transition"
-                        >
-                          Send WhatsApp
-                        </button>
+                            <button
+                              onClick={() =>
+                                markPaid(month, year)
+                              }
+                              className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 rounded-2xl font-bold transition"
+                            >
+                              Mark Paid
+                            </button>
+
+                            <button
+                              onClick={() =>
+                                markPending(month, year)
+                              }
+                              className="flex-1 py-4 bg-red-600 hover:bg-red-700 rounded-2xl font-bold transition"
+                            >
+                              Mark Pending
+                            </button>
+
+                            <button
+                              onClick={() =>
+                                sendSingleMonth(
+                                  month,
+                                  year,
+                                  amount
+                                )
+                              }
+                              className="flex-1 py-4 bg-cyan-600 hover:bg-cyan-700 rounded-2xl font-bold transition"
+                            >
+                              Send WhatsApp
+                            </button>
+
+                          </>
+
+                        ) : (
+
+                          <div className="w-full py-4 bg-emerald-500/20 border border-emerald-400 text-emerald-300 rounded-2xl text-center font-bold text-lg">
+
+                            ✅ Fee Paid Successfully
+
+                          </div>
+
+                        )}
 
                       </div>
 

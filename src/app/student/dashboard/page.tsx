@@ -27,7 +27,7 @@ type ClassFee = {
   monthly_fee: number
 }
 
-const months = [
+const allMonths = [
   { month: 'April', year: '2026' },
   { month: 'May', year: '2026' },
   { month: 'June', year: '2026' },
@@ -43,6 +43,7 @@ const months = [
 ]
 
 export default function StudentDashboard() {
+
   const router = useRouter()
 
   const [familyStudents, setFamilyStudents] =
@@ -54,45 +55,75 @@ export default function StudentDashboard() {
   const [student, setStudent] =
     useState<Student | null>(null)
 
-  const [fees, setFees] = useState<Fee[]>([])
+  const [fees, setFees] =
+    useState<Fee[]>([])
 
-  const [classFees, setClassFees] = useState<ClassFee[]>([])
+  const [classFees, setClassFees] =
+    useState<ClassFee[]>([])
 
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] =
+    useState(true)
+
+  // 🔥 REAL CURRENT MONTH
+  const currentDate = new Date()
+
+  const currentMonthIndex =
+    currentDate.getMonth()
+
+  const visibleMonths =
+    allMonths.slice(
+      0,
+      currentMonthIndex - 2
+    )
 
   useEffect(() => {
+
     async function fetchData() {
 
       const phone =
-        localStorage.getItem('student_phone')
+        localStorage.getItem(
+          'student_phone'
+        )
 
       if (!phone) {
+
         router.push('/')
+
         return
       }
 
       // FAMILY STUDENTS
-      const { data: familyData } = await supabase
-        .from('students')
-        .select('*')
-        .eq('phone', phone)
+      const { data: familyData } =
+        await supabase
+          .from('students')
+          .select('*')
+          .eq('phone', phone)
 
-      setFamilyStudents(familyData || [])
+      setFamilyStudents(
+        familyData || []
+      )
 
-      let currentStudentId = selectedStudentId
+      let currentStudentId =
+        selectedStudentId
 
       if (
         !currentStudentId &&
         familyData &&
         familyData.length > 0
       ) {
-        currentStudentId = familyData[0].id
 
-        setSelectedStudentId(currentStudentId)
+        currentStudentId =
+          familyData[0].id
+
+        setSelectedStudentId(
+          currentStudentId
+        )
       }
 
       if (!currentStudentId) {
+
         setLoading(false)
+
         return
       }
 
@@ -101,11 +132,17 @@ export default function StudentDashboard() {
         await supabase
           .from('students')
           .select('*')
-          .eq('id', currentStudentId)
+          .eq(
+            'id',
+            currentStudentId
+          )
           .maybeSingle()
 
       if (!studentData) {
-        alert('Student not found')
+
+        alert(
+          'Student not found'
+        )
 
         router.push('/')
 
@@ -115,20 +152,27 @@ export default function StudentDashboard() {
       setStudent(studentData)
 
       // FEES
-      const { data: feesData } = await supabase
-        .from('fees')
-        .select('*')
-        .eq('student_id', studentData.id)
+      const { data: feesData } =
+        await supabase
+          .from('fees')
+          .select('*')
+          .eq(
+            'student_id',
+            studentData.id
+          )
 
       setFees(feesData || [])
 
       // CLASS FEES
-      const { data: classFeesData } =
-        await supabase
-          .from('class_fees')
-          .select('*')
+      const {
+        data: classFeesData
+      } = await supabase
+        .from('class_fees')
+        .select('*')
 
-      setClassFees(classFeesData || [])
+      setClassFees(
+        classFeesData || []
+      )
 
       setLoading(false)
     }
@@ -137,7 +181,11 @@ export default function StudentDashboard() {
 
   }, [router, selectedStudentId])
 
-  function getFee(month: string, year: string) {
+  function getFee(
+    month: string,
+    year: string
+  ) {
+
     return fees.find(
       (f) =>
         f.month === month &&
@@ -145,40 +193,71 @@ export default function StudentDashboard() {
     )
   }
 
-  // FIXED TOTAL PENDING
-  const totalPending = student
-    ? months.reduce((sum, { month, year }) => {
+  // 🔥 ONLY CURRENT MONTHS
+  const totalPending =
+    student
+      ? visibleMonths.reduce(
+          (
+            sum,
+            {
+              month,
+              year
+            }
+          ) => {
 
-        const fee = getFee(month, year)
+            const fee =
+              getFee(
+                month,
+                year
+              )
 
-        const classFee = classFees.find(
-          (f) =>
-            String(f.class_name).trim() ===
-            String(student.class).trim()
+            const classFee =
+              classFees.find(
+                (f) =>
+                  String(
+                    f.class_name
+                  ).trim() ===
+                  String(
+                    student.class
+                  ).trim()
+              )
+
+            const amount =
+              fee?.amount ||
+              student.custom_fee ||
+              classFee?.monthly_fee ||
+              1200
+
+            if (
+              !fee ||
+              fee.status ===
+                'pending'
+            ) {
+
+              return (
+                sum +
+                amount
+              )
+            }
+
+            return sum
+
+          },
+          0
         )
-
-        const amount =
-          fee?.amount ||
-          student.custom_fee ||
-          classFee?.monthly_fee ||
-          1200
-
-        if (!fee || fee.status === 'pending') {
-          return sum + amount
-        }
-
-        return sum
-
-      }, 0)
-    : 0
+      : 0
 
   function logout() {
-    localStorage.removeItem('student_phone')
+
+    localStorage.removeItem(
+      'student_phone'
+    )
 
     router.push('/')
   }
 
   if (loading) {
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white text-3xl font-bold">
         Loading...
@@ -208,7 +287,9 @@ export default function StudentDashboard() {
 
               {/* STUDENT SELECT */}
               <select
-                value={selectedStudentId}
+                value={
+                  selectedStudentId
+                }
                 onChange={(e) =>
                   setSelectedStudentId(
                     e.target.value
@@ -216,19 +297,26 @@ export default function StudentDashboard() {
                 }
                 className="bg-white/20 text-white px-4 py-3 rounded-2xl mb-4 backdrop-blur-xl border border-white/20 outline-none"
               >
-                {familyStudents.map((s) => (
-                  <option
-                    key={s.id}
-                    value={s.id}
-                    className="text-black"
-                  >
-                    {s.name} - Class {s.class}
-                  </option>
-                ))}
+
+                {familyStudents.map(
+                  (s) => (
+                    <option
+                      key={s.id}
+                      value={s.id}
+                      className="text-black"
+                    >
+                      {s.name} -
+                      Class{' '}
+                      {s.class}
+                    </option>
+                  )
+                )}
+
               </select>
 
               <h1 className="text-4xl md:text-6xl font-bold">
-                Welcome, {student?.name}
+                Welcome,{' '}
+                {student?.name}
               </h1>
 
               <p className="text-white/70 text-lg mt-2">
@@ -298,64 +386,80 @@ export default function StudentDashboard() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-            {months.map(({ month, year }) => {
+            {visibleMonths.map(
+              ({
+                month,
+                year
+              }) => {
 
-              const fee = getFee(month, year)
+                const fee =
+                  getFee(
+                    month,
+                    year
+                  )
 
-              const status =
-                fee?.status || 'pending'
+                const status =
+                  fee?.status ||
+                  'pending'
 
-              const classFee = classFees.find(
-                (f) =>
-                  String(f.class_name).trim() ===
-                  String(student?.class).trim()
-              )
+                const classFee =
+                  classFees.find(
+                    (f) =>
+                      String(
+                        f.class_name
+                      ).trim() ===
+                      String(
+                        student?.class
+                      ).trim()
+                  )
 
-              const amount =
-                fee?.amount ||
-                student?.custom_fee ||
-                classFee?.monthly_fee ||
-                1200
+                const amount =
+                  fee?.amount ||
+                  student?.custom_fee ||
+                  classFee?.monthly_fee ||
+                  1200
 
-              return (
-                <div
-                  key={`${month}-${year}`}
-                  className="bg-white/10 backdrop-blur-lg border border-white/10 rounded-3xl p-6 hover:scale-[1.02] transition duration-300"
-                >
+                return (
+                  <div
+                    key={`${month}-${year}`}
+                    className="bg-white/10 backdrop-blur-lg border border-white/10 rounded-3xl p-6 hover:scale-[1.02] transition duration-300"
+                  >
 
-                  <div className="flex justify-between items-center mb-5">
+                    <div className="flex justify-between items-center mb-5">
 
-                    <div>
+                      <div>
 
-                      <h3 className="text-3xl font-bold">
-                        {month}
-                      </h3>
+                        <h3 className="text-3xl font-bold">
+                          {month}
+                        </h3>
 
-                      <p className="text-white/70 text-lg">
-                        {year}
-                      </p>
+                        <p className="text-white/70 text-lg">
+                          {year}
+                        </p>
+
+                      </div>
+
+                      <div
+                        className={`px-5 py-3 rounded-2xl font-bold text-sm shadow-xl ${
+                          status ===
+                          'paid'
+                            ? 'bg-green-500'
+                            : 'bg-red-500'
+                        }`}
+                      >
+                        {status.toUpperCase()}
+                      </div>
 
                     </div>
 
-                    <div
-                      className={`px-5 py-3 rounded-2xl font-bold text-sm shadow-xl ${
-                        status === 'paid'
-                          ? 'bg-green-500'
-                          : 'bg-red-500'
-                      }`}
-                    >
-                      {status.toUpperCase()}
-                    </div>
+                    <p className="text-4xl font-bold">
+                      ₹{amount}
+                    </p>
 
                   </div>
-
-                  <p className="text-4xl font-bold">
-                    ₹{amount}
-                  </p>
-
-                </div>
-              )
-            })}
+                )
+              }
+            )}
 
           </div>
 

@@ -27,7 +27,7 @@ type ClassFee = {
   monthly_fee: number
 }
 
-const months = [
+const allMonths = [
   { month: 'April', year: '2026' },
   { month: 'May', year: '2026' },
   { month: 'June', year: '2026' },
@@ -43,12 +43,19 @@ const months = [
 ]
 
 export default function FeesPage() {
+
   const { loading } = useAdminAuth()
+
   const router = useRouter()
 
-  const [students, setStudents] = useState<Student[]>([])
-  const [fees, setFees] = useState<Fee[]>([])
-  const [classFees, setClassFees] = useState<ClassFee[]>([])
+  const [students, setStudents] =
+    useState<Student[]>([])
+
+  const [fees, setFees] =
+    useState<Fee[]>([])
+
+  const [classFees, setClassFees] =
+    useState<ClassFee[]>([])
 
   const [selectedClass, setSelectedClass] =
     useState('')
@@ -56,19 +63,37 @@ export default function FeesPage() {
   const [selectedStudent, setSelectedStudent] =
     useState<Student | null>(null)
 
+  // 🔥 CURRENT REAL MONTH
+  const currentDate = new Date()
+
+  const currentMonthIndex =
+    currentDate.getMonth()
+
+  const visibleMonths =
+    allMonths.slice(
+      0,
+      currentMonthIndex - 2
+    )
+
   async function fetchData() {
-    const { data: studentsData } = await supabase
-      .from('students')
-      .select('*')
-      .order('class', { ascending: true })
 
-    const { data: feesData } = await supabase
-      .from('fees')
-      .select('*')
+    const { data: studentsData } =
+      await supabase
+        .from('students')
+        .select('*')
+        .order('class', {
+          ascending: true
+        })
 
-    const { data: classFeesData } = await supabase
-      .from('class_fees')
-      .select('*')
+    const { data: feesData } =
+      await supabase
+        .from('fees')
+        .select('*')
+
+    const { data: classFeesData } =
+      await supabase
+        .from('class_fees')
+        .select('*')
 
     setStudents(studentsData || [])
     setFees(feesData || [])
@@ -79,25 +104,33 @@ export default function FeesPage() {
       studentsData.length > 0 &&
       !selectedStudent
     ) {
-      const firstClass = studentsData[0].class
+
+      const firstClass =
+        studentsData[0].class
 
       setSelectedClass(firstClass)
 
-      const firstStudent = studentsData.find(
-        (s) => s.class === firstClass
-      )
+      const firstStudent =
+        studentsData.find(
+          (s) =>
+            s.class === firstClass
+        )
 
-      setSelectedStudent(firstStudent || null)
+      setSelectedStudent(
+        firstStudent || null
+      )
     }
   }
 
   useEffect(() => {
-  async function loadData() {
-    await fetchData()
-  }
 
-  loadData()
-}, [])
+    async function loadData() {
+      await fetchData()
+    }
+
+    loadData()
+
+  }, [])
 
   if (loading) {
     return (
@@ -108,76 +141,131 @@ export default function FeesPage() {
   }
 
   const uniqueClasses = [
-    ...new Set(students.map((s) => s.class))
+    ...new Set(
+      students.map((s) => s.class)
+    )
   ]
 
-  const filteredStudents = students.filter(
-    (s) => s.class === selectedClass
-  )
+  const filteredStudents =
+    students.filter(
+      (s) =>
+        s.class === selectedClass
+    )
 
-  // ✅ FIXED FEE FUNCTION
-  function getStudentFee(student: Student) {
+  function getStudentFee(
+    student: Student
+  ) {
 
-    // custom fee first
     if (
       student.custom_fee !== null &&
       student.custom_fee !== undefined
     ) {
-      return Number(student.custom_fee)
+      return Number(
+        student.custom_fee
+      )
     }
 
-    // class fee lookup
-    const classFee = classFees.find(
-      (f) =>
-        String(f.class_name).trim() ===
-        String(student.class).trim()
-    )
+    const classFee =
+      classFees.find(
+        (f) =>
+          String(
+            f.class_name
+          ).trim() ===
+          String(
+            student.class
+          ).trim()
+      )
 
     if (classFee?.monthly_fee) {
-      return Number(classFee.monthly_fee)
+      return Number(
+        classFee.monthly_fee
+      )
     }
 
-    // fallback
     return 1200
   }
 
-  function getMonthFee(month: string, year: string) {
-    if (!selectedStudent) return null
+  function getMonthFee(
+    month: string,
+    year: string
+  ) {
+
+    if (!selectedStudent)
+      return null
 
     return fees.find(
       (f) =>
-        f.student_id === selectedStudent.id &&
+        f.student_id ===
+          selectedStudent.id &&
         f.month === month &&
         f.year === year
     )
   }
 
-  async function markPaid(month: string, year: string) {
-    if (!selectedStudent) return
+  async function markPaid(
+    month: string,
+    year: string
+  ) {
 
-    const existingFee = getMonthFee(month, year)
+    if (!selectedStudent)
+      return
 
-    const amount = getStudentFee(selectedStudent)
+    const existingFee =
+      getMonthFee(month, year)
+
+    const amount =
+      getStudentFee(
+        selectedStudent
+      )
 
     if (existingFee) {
+
       await supabase
         .from('fees')
         .update({
           status: 'paid',
           amount
         })
-        .eq('id', existingFee.id)
+        .eq(
+          'id',
+          existingFee.id
+        )
+
     } else {
-      await supabase.from('fees').insert([
-        {
-          student_id: selectedStudent.id,
-          month,
-          year,
-          amount,
-          status: 'paid'
-        }
-      ])
+
+      await supabase
+        .from('fees')
+        .insert([
+          {
+            student_id:
+              selectedStudent.id,
+            month,
+            year,
+            amount,
+            status: 'paid'
+          }
+        ])
     }
+
+    const message =
+      `Hello ${selectedStudent.name},\n\n` +
+      `Your fees for ${month} ${year} has been received successfully ✅\n\n` +
+      `Amount Received: ₹${amount}\n\n` +
+      `NAS FEES RECORDS`
+
+    const cleanPhone =
+      selectedStudent.phone.replace(
+        /\s+/g,
+        ''
+      )
+
+    const url =
+      `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(message)}`
+
+    window.open(
+      url,
+      '_blank'
+    )
 
     await fetchData()
   }
@@ -186,30 +274,45 @@ export default function FeesPage() {
     month: string,
     year: string
   ) {
-    if (!selectedStudent) return
 
-    const existingFee = getMonthFee(month, year)
+    if (!selectedStudent)
+      return
 
-    const amount = getStudentFee(selectedStudent)
+    const existingFee =
+      getMonthFee(month, year)
+
+    const amount =
+      getStudentFee(
+        selectedStudent
+      )
 
     if (existingFee) {
+
       await supabase
         .from('fees')
         .update({
           status: 'pending',
           amount
         })
-        .eq('id', existingFee.id)
+        .eq(
+          'id',
+          existingFee.id
+        )
+
     } else {
-      await supabase.from('fees').insert([
-        {
-          student_id: selectedStudent.id,
-          month,
-          year,
-          amount,
-          status: 'pending'
-        }
-      ])
+
+      await supabase
+        .from('fees')
+        .insert([
+          {
+            student_id:
+              selectedStudent.id,
+            month,
+            year,
+            amount,
+            status: 'pending'
+          }
+        ])
     }
 
     await fetchData()
@@ -220,7 +323,9 @@ export default function FeesPage() {
     year: string,
     amount: number
   ) {
-    if (!selectedStudent) return
+
+    if (!selectedStudent)
+      return
 
     const message =
       `Hello ${selectedStudent.name},\n\n` +
@@ -231,27 +336,52 @@ export default function FeesPage() {
     const url =
       `https://wa.me/91${selectedStudent.phone}?text=${encodeURIComponent(message)}`
 
-    window.open(url, '_blank')
+    window.open(
+      url,
+      '_blank'
+    )
   }
 
-  const totalPending = selectedStudent
-    ? months.reduce(
-        (sum, { month, year }) => {
-          const fee = getMonthFee(month, year)
+  // 🔥 ONLY CURRENT MONTHS
+  const totalPending =
+    selectedStudent
+      ? visibleMonths.reduce(
+          (
+            sum,
+            {
+              month,
+              year
+            }
+          ) => {
 
-          const amount =
-            fee?.amount ||
-            getStudentFee(selectedStudent)
+            const fee =
+              getMonthFee(
+                month,
+                year
+              )
 
-          if (!fee || fee.status === 'pending') {
-            return sum + amount
-          }
+            const amount =
+              fee?.amount ||
+              getStudentFee(
+                selectedStudent
+              )
 
-          return sum
-        },
-        0
-      )
-    : 0
+            if (
+              !fee ||
+              fee.status ===
+                'pending'
+            ) {
+              return (
+                sum +
+                amount
+              )
+            }
+
+            return sum
+          },
+          0
+        )
+      : 0
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white flex flex-col md:flex-row">
@@ -260,7 +390,9 @@ export default function FeesPage() {
 
         <button
           onClick={() =>
-            router.push('/admin/dashboard')
+            router.push(
+              '/admin/dashboard'
+            )
           }
           className="mb-5 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-xl text-sm"
         >
@@ -268,6 +400,7 @@ export default function FeesPage() {
         </button>
 
         <div className="mb-6">
+
           <label className="block text-sm mb-2 text-white/70">
             Select Class
           </label>
@@ -275,31 +408,43 @@ export default function FeesPage() {
           <select
             value={selectedClass}
             onChange={(e) => {
-              const cls = e.target.value
 
-              setSelectedClass(cls)
+              const cls =
+                e.target.value
+
+              setSelectedClass(
+                cls
+              )
 
               const firstStudent =
                 students.find(
-                  (s) => s.class === cls
+                  (s) =>
+                    s.class ===
+                    cls
                 )
 
               setSelectedStudent(
-                firstStudent || null
+                firstStudent ||
+                  null
               )
             }}
             className="w-full bg-white/20 backdrop-blur-lg border border-white/20 rounded-xl p-3 text-white outline-none"
           >
-            {uniqueClasses.map((cls) => (
-              <option
-                key={cls}
-                value={cls}
-                className="text-black"
-              >
-                Class {cls}
-              </option>
-            ))}
+
+            {uniqueClasses.map(
+              (cls) => (
+                <option
+                  key={cls}
+                  value={cls}
+                  className="text-black"
+                >
+                  Class {cls}
+                </option>
+              )
+            )}
+
           </select>
+
         </div>
 
         <h1 className="text-xl font-bold mb-3">
@@ -308,27 +453,42 @@ export default function FeesPage() {
 
         <div className="space-y-3 max-h-[500px] overflow-y-auto">
 
-          {filteredStudents.map((student) => (
-            <div
-              key={student.id}
-              onClick={() =>
-                setSelectedStudent(student)
-              }
-              className={`p-3 rounded-xl cursor-pointer transition ${
-                selectedStudent?.id === student.id
-                  ? 'bg-white/25'
-                  : 'bg-white/10 hover:bg-white/20'
-              }`}
-            >
-              <h2 className="text-lg font-semibold">
-                {student.name}
-              </h2>
+          {filteredStudents.map(
+            (student) => (
+              <div
+                key={
+                  student.id
+                }
+                onClick={() =>
+                  setSelectedStudent(
+                    student
+                  )
+                }
+                className={`p-3 rounded-xl cursor-pointer transition ${
+                  selectedStudent?.id ===
+                  student.id
+                    ? 'bg-white/25'
+                    : 'bg-white/10 hover:bg-white/20'
+                }`}
+              >
 
-              <p className="text-sm text-white/70">
-                Class {student.class}
-              </p>
-            </div>
-          ))}
+                <h2 className="text-lg font-semibold">
+                  {
+                    student.name
+                  }
+                </h2>
+
+                <p className="text-sm text-white/70">
+                  Class{' '}
+                  {
+                    student.class
+                  }
+                </p>
+
+              </div>
+            )
+          )}
+
         </div>
       </div>
 
@@ -336,101 +496,128 @@ export default function FeesPage() {
 
         {selectedStudent && (
           <>
+
             <div className="mb-8">
 
               <h1 className="text-3xl md:text-5xl font-bold mb-2">
-                {selectedStudent.name}
+                {
+                  selectedStudent.name
+                }
               </h1>
 
               <p className="text-lg text-white/80 mb-3">
-                Class {selectedStudent.class}
+                Class{' '}
+                {
+                  selectedStudent.class
+                }
               </p>
 
               <div className="text-2xl font-bold text-yellow-300">
-                Total Pending: ₹{totalPending}
+                Total Pending:
+                ₹{
+                  totalPending
+                }
               </div>
+
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-              {months.map(({ month, year }) => {
-                const fee = getMonthFee(
+              {visibleMonths.map(
+                ({
                   month,
                   year
-                )
+                }) => {
 
-                const status =
-                  fee?.status || 'pending'
+                  const fee =
+                    getMonthFee(
+                      month,
+                      year
+                    )
 
-                const amount =
-                  fee?.amount ||
-                  getStudentFee(selectedStudent)
+                  const status =
+                    fee?.status ||
+                    'pending'
 
-                return (
-                  <div
-                    key={`${month}-${year}`}
-                    className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 border border-white/10"
-                  >
+                  const amount =
+                    fee?.amount ||
+                    getStudentFee(
+                      selectedStudent
+                    )
 
-                    <h2 className="text-2xl md:text-3xl font-bold mb-2">
-                      {month}
-                    </h2>
-
-                    <p className="text-sm text-white/60 mb-2">
-                      {year}
-                    </p>
-
-                    <p className="text-2xl font-bold mb-2">
-                      ₹{amount}
-                    </p>
-
-                    <p
-                      className={`font-bold mb-4 ${
-                        status === 'paid'
-                          ? 'text-green-300'
-                          : 'text-red-300'
-                      }`}
+                  return (
+                    <div
+                      key={`${month}-${year}`}
+                      className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 border border-white/10"
                     >
-                      {status.toUpperCase()}
-                    </p>
 
-                    <div className="flex flex-wrap gap-2">
+                      <h2 className="text-2xl md:text-3xl font-bold mb-2">
+                        {month}
+                      </h2>
 
-                      <button
-                        onClick={() =>
-                          markPaid(month, year)
-                        }
-                        className="bg-green-500 hover:bg-green-600 px-3 py-2 rounded-lg text-sm font-bold"
+                      <p className="text-sm text-white/60 mb-2">
+                        {year}
+                      </p>
+
+                      <p className="text-2xl font-bold mb-2">
+                        ₹{amount}
+                      </p>
+
+                      <p
+                        className={`font-bold mb-4 ${
+                          status ===
+                          'paid'
+                            ? 'text-green-300'
+                            : 'text-red-300'
+                        }`}
                       >
-                        Paid
-                      </button>
+                        {status.toUpperCase()}
+                      </p>
 
-                      <button
-                        onClick={() =>
-                          markPending(month, year)
-                        }
-                        className="bg-red-500 hover:bg-red-600 px-3 py-2 rounded-lg text-sm font-bold"
-                      >
-                        Pending
-                      </button>
+                      <div className="flex flex-wrap gap-2">
 
-                      <button
-                        onClick={() =>
-                          sendSingleMonth(
-                            month,
-                            year,
-                            amount
-                          )
-                        }
-                        className="bg-blue-500 hover:bg-blue-600 px-3 py-2 rounded-lg text-sm font-bold"
-                      >
-                        WhatsApp
-                      </button>
+                        <button
+                          onClick={() =>
+                            markPaid(
+                              month,
+                              year
+                            )
+                          }
+                          className="bg-green-500 hover:bg-green-600 px-3 py-2 rounded-lg text-sm font-bold"
+                        >
+                          Paid
+                        </button>
 
+                        <button
+                          onClick={() =>
+                            markPending(
+                              month,
+                              year
+                            )
+                          }
+                          className="bg-red-500 hover:bg-red-600 px-3 py-2 rounded-lg text-sm font-bold"
+                        >
+                          Pending
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            sendSingleMonth(
+                              month,
+                              year,
+                              amount
+                            )
+                          }
+                          className="bg-blue-500 hover:bg-blue-600 px-3 py-2 rounded-lg text-sm font-bold"
+                        >
+                          WhatsApp
+                        </button>
+
+                      </div>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                }
+              )}
 
             </div>
           </>

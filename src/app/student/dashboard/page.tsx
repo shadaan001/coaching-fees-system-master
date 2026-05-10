@@ -18,7 +18,6 @@ type Fee = {
   student_id: string
   month: string
   year: string
-  amount: number
   status: string
 }
 
@@ -64,123 +63,147 @@ export default function StudentDashboard() {
   const [loading, setLoading] =
     useState(true)
 
-  // 🔥 REAL CURRENT MONTH
+  // 🔥 CURRENT MONTH SYSTEM
   const currentDate = new Date()
 
   const currentMonthIndex =
     currentDate.getMonth()
 
+  const academicMonthIndex =
+    currentMonthIndex >= 3
+      ? currentMonthIndex - 3
+      : currentMonthIndex + 9
+
   const visibleMonths =
     allMonths.slice(
       0,
-      currentMonthIndex - 2
+      academicMonthIndex + 1
     )
 
-  useEffect(() => {
+  // 🔥 FETCH DATA
+  async function fetchData(
+    currentId?: string
+  ) {
 
-    async function fetchData() {
-
-      const phone =
-        localStorage.getItem(
-          'student_phone'
-        )
-
-      if (!phone) {
-
-        router.push('/')
-
-        return
-      }
-
-      // FAMILY STUDENTS
-      const { data: familyData } =
-        await supabase
-          .from('students')
-          .select('*')
-          .eq('phone', phone)
-
-      setFamilyStudents(
-        familyData || []
+    const phone =
+      localStorage.getItem(
+        'student_phone'
       )
 
-      let currentStudentId =
-        selectedStudentId
+    if (!phone) {
 
-      if (
-        !currentStudentId &&
-        familyData &&
-        familyData.length > 0
-      ) {
+      router.push('/')
 
-        currentStudentId =
-          familyData[0].id
-
-        setSelectedStudentId(
-          currentStudentId
-        )
-      }
-
-      if (!currentStudentId) {
-
-        setLoading(false)
-
-        return
-      }
-
-      // CURRENT STUDENT
-      const { data: studentData } =
-        await supabase
-          .from('students')
-          .select('*')
-          .eq(
-            'id',
-            currentStudentId
-          )
-          .maybeSingle()
-
-      if (!studentData) {
-
-        alert(
-          'Student not found'
-        )
-
-        router.push('/')
-
-        return
-      }
-
-      setStudent(studentData)
-
-      // FEES
-      const { data: feesData } =
-        await supabase
-          .from('fees')
-          .select('*')
-          .eq(
-            'student_id',
-            studentData.id
-          )
-
-      setFees(feesData || [])
-
-      // CLASS FEES
-      const {
-        data: classFeesData
-      } = await supabase
-        .from('class_fees')
-        .select('*')
-
-      setClassFees(
-        classFeesData || []
-      )
-
-      setLoading(false)
+      return
     }
 
-    fetchData()
+    // 🔥 GET FAMILY STUDENTS
+    const {
+      data: familyData
+    } = await supabase
+      .from('students')
+      .select('*')
+      .eq('phone', phone)
 
-  }, [router, selectedStudentId])
+    setFamilyStudents(
+      familyData || []
+    )
 
+    let activeId =
+      currentId || ''
+
+    // 🔥 AUTO SELECT FIRST STUDENT
+    if (
+      !activeId &&
+      familyData &&
+      familyData.length > 0
+    ) {
+
+      activeId =
+        familyData[0].id
+
+      setSelectedStudentId(
+        activeId
+      )
+    }
+
+    if (!activeId) {
+
+      setLoading(false)
+
+      return
+    }
+
+    // 🔥 STUDENT DATA
+    const {
+      data: studentData
+    } = await supabase
+      .from('students')
+      .select('*')
+      .eq('id', activeId)
+      .single()
+
+    setStudent(studentData)
+
+    // 🔥 FEES DATA
+    const {
+      data: feesData
+    } = await supabase
+      .from('fees')
+      .select('*')
+      .eq(
+        'student_id',
+        activeId
+      )
+
+    setFees(feesData || [])
+
+    // 🔥 CLASS FEES
+    const {
+      data: classFeesData
+    } = await supabase
+      .from('class_fees')
+      .select('*')
+
+    setClassFees(
+      classFeesData || []
+    )
+
+    setLoading(false)
+  }
+
+  // 🔥 FIRST LOAD FIXED
+  useEffect(() => {
+
+    async function loadData() {
+
+      await fetchData()
+
+    }
+
+    loadData()
+
+  }, [])
+
+  // 🔥 STUDENT SWITCH FIXED
+  useEffect(() => {
+
+    if (!selectedStudentId)
+      return
+
+    async function loadStudent() {
+
+      await fetchData(
+        selectedStudentId
+      )
+
+    }
+
+    loadStudent()
+
+  }, [selectedStudentId])
+
+  // 🔥 GET MONTH FEE
   function getFee(
     month: string,
     year: string
@@ -193,7 +216,36 @@ export default function StudentDashboard() {
     )
   }
 
-  // 🔥 ONLY CURRENT MONTHS
+  // 🔥 ALWAYS LIVE FEE
+  function getAmount() {
+
+    if (!student)
+      return 1200
+
+    if (
+      student.custom_fee !== null &&
+      student.custom_fee !== undefined
+    ) {
+
+      return Number(
+        student.custom_fee
+      )
+    }
+
+    const classFee =
+      classFees.find(
+        (c) =>
+          c.class_name ===
+          student.class
+      )
+
+    return (
+      classFee?.monthly_fee ||
+      1200
+    )
+  }
+
+  // 🔥 TOTAL PENDING
   const totalPending =
     student
       ? visibleMonths.reduce(
@@ -211,22 +263,8 @@ export default function StudentDashboard() {
                 year
               )
 
-            const classFee =
-              classFees.find(
-                (f) =>
-                  String(
-                    f.class_name
-                  ).trim() ===
-                  String(
-                    student.class
-                  ).trim()
-              )
-
             const amount =
-              fee?.amount ||
-              student.custom_fee ||
-              classFee?.monthly_fee ||
-              1200
+              getAmount()
 
             if (
               !fee ||
@@ -259,33 +297,37 @@ export default function StudentDashboard() {
   if (loading) {
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white text-3xl font-bold">
+      <div className="min-h-screen flex items-center justify-center text-3xl font-bold text-cyan-400 bg-black">
         Loading...
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 p-4 md:p-8 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-[#1a0033] to-[#0f001a] p-6 md:p-8 text-white">
 
       <div className="max-w-7xl mx-auto">
 
         {/* TOP */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-12 gap-6">
 
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-6">
 
-            <Image
-              src="/logo.png"
-              alt="logo"
-              width={90}
-              height={90}
-              className="rounded-3xl shadow-2xl"
-            />
+            <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-cyan-400 to-purple-600 p-1 shadow-xl">
+
+              <Image
+                src="/logo.png"
+                alt="logo"
+                width={100}
+                height={100}
+                className="rounded-2xl"
+              />
+
+            </div>
 
             <div>
 
-              {/* STUDENT SELECT */}
+              {/* 🔥 FAMILY STUDENT SWITCH */}
               <select
                 value={
                   selectedStudentId
@@ -295,7 +337,7 @@ export default function StudentDashboard() {
                     e.target.value
                   )
                 }
-                className="bg-white/20 text-white px-4 py-3 rounded-2xl mb-4 backdrop-blur-xl border border-white/20 outline-none"
+                className="glass px-6 py-3 rounded-2xl text-xl outline-none text-black font-medium bg-white"
               >
 
                 {familyStudents.map(
@@ -303,25 +345,23 @@ export default function StudentDashboard() {
                     <option
                       key={s.id}
                       value={s.id}
-                      className="text-black"
                     >
-                      {s.name} -
-                      Class{' '}
-                      {s.class}
+                      {s.name} — Class {s.class}
                     </option>
                   )
                 )}
 
               </select>
 
-              <h1 className="text-4xl md:text-6xl font-bold">
-                Welcome,{' '}
-                {student?.name}
-              </h1>
+              <h1 className="text-5xl md:text-6xl font-bold mt-4 neon-text tracking-tight">
 
-              <p className="text-white/70 text-lg mt-2">
-                Student Dashboard
-              </p>
+                Welcome{' '}
+
+                <span className="text-cyan-400">
+                  {student?.name}
+                </span>
+
+              </h1>
 
             </div>
 
@@ -329,7 +369,7 @@ export default function StudentDashboard() {
 
           <button
             onClick={logout}
-            className="bg-white text-black px-6 py-3 rounded-2xl font-bold hover:scale-105 transition shadow-2xl"
+            className="glass px-8 py-4 rounded-2xl text-lg hover:bg-red-500/20 transition"
           >
             Logout
           </button>
@@ -337,54 +377,54 @@ export default function StudentDashboard() {
         </div>
 
         {/* INFO */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
 
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl">
+          <div className="glass p-8 rounded-3xl">
 
-            <p className="text-white/70 mb-2">
+            <p className="text-white/60 text-lg">
               Class
             </p>
 
-            <h2 className="text-4xl font-bold">
+            <p className="text-5xl font-bold mt-3">
               {student?.class}
-            </h2>
+            </p>
 
           </div>
 
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl">
+          <div className="glass p-8 rounded-3xl">
 
-            <p className="text-white/70 mb-2">
+            <p className="text-white/60 text-lg">
               Phone
             </p>
 
-            <h2 className="text-3xl font-bold">
+            <p className="text-4xl font-bold mt-3">
               {student?.phone}
-            </h2>
+            </p>
 
           </div>
 
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl">
+          <div className="glass p-8 rounded-3xl">
 
-            <p className="text-white/70 mb-2">
+            <p className="text-white/60 text-lg">
               Total Pending
             </p>
 
-            <h2 className="text-4xl font-bold text-yellow-300">
+            <p className="text-5xl font-bold text-yellow-300 mt-3">
               ₹{totalPending}
-            </h2>
+            </p>
 
           </div>
 
         </div>
 
         {/* FEES */}
-        <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl">
+        <div className="glass p-10 rounded-3xl">
 
-          <h2 className="text-4xl font-bold mb-8">
-            Fees Status
+          <h2 className="text-4xl font-bold mb-10">
+            Fee Status
           </h2>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
             {visibleMonths.map(
               ({
@@ -402,30 +442,17 @@ export default function StudentDashboard() {
                   fee?.status ||
                   'pending'
 
-                const classFee =
-                  classFees.find(
-                    (f) =>
-                      String(
-                        f.class_name
-                      ).trim() ===
-                      String(
-                        student?.class
-                      ).trim()
-                  )
-
                 const amount =
-                  fee?.amount ||
-                  student?.custom_fee ||
-                  classFee?.monthly_fee ||
-                  1200
+                  getAmount()
 
                 return (
+
                   <div
                     key={`${month}-${year}`}
-                    className="bg-white/10 backdrop-blur-lg border border-white/10 rounded-3xl p-6 hover:scale-[1.02] transition duration-300"
+                    className="glass p-8 rounded-3xl border border-white/10"
                   >
 
-                    <div className="flex justify-between items-center mb-5">
+                    <div className="flex justify-between items-start">
 
                       <div>
 
@@ -433,17 +460,16 @@ export default function StudentDashboard() {
                           {month}
                         </h3>
 
-                        <p className="text-white/70 text-lg">
+                        <p className="text-lg opacity-70">
                           {year}
                         </p>
 
                       </div>
 
                       <div
-                        className={`px-5 py-3 rounded-2xl font-bold text-sm shadow-xl ${
-                          status ===
-                          'paid'
-                            ? 'bg-green-500'
+                        className={`px-5 py-2 rounded-full text-sm font-bold ${
+                          status === 'paid'
+                            ? 'bg-emerald-500'
                             : 'bg-red-500'
                         }`}
                       >
@@ -452,11 +478,12 @@ export default function StudentDashboard() {
 
                     </div>
 
-                    <p className="text-4xl font-bold">
+                    <p className="text-5xl font-bold mt-8">
                       ₹{amount}
                     </p>
 
                   </div>
+
                 )
               }
             )}
@@ -466,6 +493,7 @@ export default function StudentDashboard() {
         </div>
 
       </div>
+
     </div>
   )
 }

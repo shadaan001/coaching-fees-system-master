@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { useAdminAuth } from '@/hooks/useAdminAuth'
 
 type Student = {
   id: string
@@ -18,7 +17,6 @@ type Fee = {
   student_id: string
   month: string
   year: string
-  amount: number
   status: string
 }
 
@@ -44,8 +42,6 @@ const allMonths = [
 
 export default function FeesPage() {
 
-  const { loading } = useAdminAuth()
-
   const router = useRouter()
 
   const [students, setStudents] =
@@ -63,94 +59,91 @@ export default function FeesPage() {
   const [selectedStudent, setSelectedStudent] =
     useState<Student | null>(null)
 
-  // 🔥 CURRENT REAL MONTH
+  // 🔥 ONLY CURRENT REAL MONTHS
   const currentDate = new Date()
 
   const currentMonthIndex =
     currentDate.getMonth()
 
+  const academicMonthIndex =
+    currentMonthIndex >= 3
+      ? currentMonthIndex - 3
+      : currentMonthIndex + 9
+
   const visibleMonths =
     allMonths.slice(
       0,
-      currentMonthIndex - 2
+      academicMonthIndex + 1
     )
 
-  async function fetchData() {
+  useEffect(() => {
 
-    const { data: studentsData } =
-      await supabase
-        .from('students')
-        .select('*')
-        .order('class', {
-          ascending: true
-        })
+    fetchData()
 
-    const { data: feesData } =
-      await supabase
-        .from('fees')
-        .select('*')
+  }, [])
 
-    const { data: classFeesData } =
-      await supabase
-        .from('class_fees')
-        .select('*')
+  async function fetchData(
+    keepStudentId?: string
+  ) {
+
+    const {
+      data: studentsData
+    } = await supabase
+      .from('students')
+      .select('*')
+      .order('class')
+
+    const {
+      data: feesData
+    } = await supabase
+      .from('fees')
+      .select('*')
+
+    const {
+      data: classFeesData
+    } = await supabase
+      .from('class_fees')
+      .select('*')
 
     setStudents(studentsData || [])
     setFees(feesData || [])
     setClassFees(classFeesData || [])
 
-    if (
-      studentsData &&
-      studentsData.length > 0 &&
-      !selectedStudent
-    ) {
+    if (studentsData?.length) {
 
-      const firstClass =
-        studentsData[0].class
+      let activeStudent = null
 
-      setSelectedClass(firstClass)
+      if (keepStudentId) {
 
-      const firstStudent =
-        studentsData.find(
-          (s) =>
-            s.class === firstClass
-        )
+        activeStudent =
+          studentsData.find(
+            s => s.id === keepStudentId
+          )
 
-      setSelectedStudent(
-        firstStudent || null
-      )
+      } else if (selectedStudent) {
+
+        activeStudent =
+          studentsData.find(
+            s =>
+              s.id ===
+              selectedStudent.id
+          )
+
+      }
+
+      if (activeStudent) {
+
+        setSelectedStudent(activeStudent)
+        setSelectedClass(activeStudent.class)
+
+      } else {
+
+        setSelectedStudent(studentsData[0])
+        setSelectedClass(studentsData[0].class)
+
+      }
     }
   }
-
-  useEffect(() => {
-
-    async function loadData() {
-      await fetchData()
-    }
-
-    loadData()
-
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="p-6 text-white">
-        Loading...
-      </div>
-    )
-  }
-
-  const uniqueClasses = [
-    ...new Set(
-      students.map((s) => s.class)
-    )
-  ]
-
-  const filteredStudents =
-    students.filter(
-      (s) =>
-        s.class === selectedClass
-    )
 
   function getStudentFee(
     student: Student
@@ -160,29 +153,16 @@ export default function FeesPage() {
       student.custom_fee !== null &&
       student.custom_fee !== undefined
     ) {
-      return Number(
-        student.custom_fee
-      )
+      return Number(student.custom_fee)
     }
 
     const classFee =
       classFees.find(
-        (f) =>
-          String(
-            f.class_name
-          ).trim() ===
-          String(
-            student.class
-          ).trim()
+        f =>
+          f.class_name === student.class
       )
 
-    if (classFee?.monthly_fee) {
-      return Number(
-        classFee.monthly_fee
-      )
-    }
-
-    return 1200
+    return classFee?.monthly_fee || 1200
   }
 
   function getMonthFee(
@@ -194,7 +174,7 @@ export default function FeesPage() {
       return null
 
     return fees.find(
-      (f) =>
+      f =>
         f.student_id ===
           selectedStudent.id &&
         f.month === month &&
@@ -210,26 +190,17 @@ export default function FeesPage() {
     if (!selectedStudent)
       return
 
-    const existingFee =
+    const existing =
       getMonthFee(month, year)
 
-    const amount =
-      getStudentFee(
-        selectedStudent
-      )
-
-    if (existingFee) {
+    if (existing) {
 
       await supabase
         .from('fees')
         .update({
-          status: 'paid',
-          amount
+          status: 'paid'
         })
-        .eq(
-          'id',
-          existingFee.id
-        )
+        .eq('id', existing.id)
 
     } else {
 
@@ -241,17 +212,22 @@ export default function FeesPage() {
               selectedStudent.id,
             month,
             year,
-            amount,
             status: 'paid'
           }
         ])
     }
 
+    const amount =
+      getStudentFee(selectedStudent)
+
     const message =
-      `Hello ${selectedStudent.name},\n\n` +
-      `Your fees for ${month} ${year} has been received successfully ✅\n\n` +
-      `Amount Received: ₹${amount}\n\n` +
-      `NAS FEES RECORDS`
+`Hello ${selectedStudent.name},
+
+Your fees for ${month} ${year} has been received successfully ✅
+
+Amount: ₹${amount}
+
+NAS FEES RECORDS`
 
     const cleanPhone =
       selectedStudent.phone.replace(
@@ -259,15 +235,12 @@ export default function FeesPage() {
         ''
       )
 
-    const url =
-      `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(message)}`
-
     window.open(
-      url,
+      `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(message)}`,
       '_blank'
     )
 
-    await fetchData()
+    await fetchData(selectedStudent.id)
   }
 
   async function markPending(
@@ -278,26 +251,17 @@ export default function FeesPage() {
     if (!selectedStudent)
       return
 
-    const existingFee =
+    const existing =
       getMonthFee(month, year)
 
-    const amount =
-      getStudentFee(
-        selectedStudent
-      )
-
-    if (existingFee) {
+    if (existing) {
 
       await supabase
         .from('fees')
         .update({
-          status: 'pending',
-          amount
+          status: 'pending'
         })
-        .eq(
-          'id',
-          existingFee.id
-        )
+        .eq('id', existing.id)
 
     } else {
 
@@ -309,13 +273,12 @@ export default function FeesPage() {
               selectedStudent.id,
             month,
             year,
-            amount,
             status: 'pending'
           }
         ])
     }
 
-    await fetchData()
+    await fetchData(selectedStudent.id)
   }
 
   function sendSingleMonth(
@@ -328,276 +291,205 @@ export default function FeesPage() {
       return
 
     const message =
-      `Hello ${selectedStudent.name},\n\n` +
-      `Your ${month} ${year} coaching fee is pending.\n\n` +
-      `Amount: ₹${amount}\n\n` +
-      `Please clear your dues.`
+`Hello ${selectedStudent.name},
 
-    const url =
-      `https://wa.me/91${selectedStudent.phone}?text=${encodeURIComponent(message)}`
+Your ${month} ${year} coaching fee is pending.
+
+Amount: ₹${amount}
+
+Please clear your dues.
+
+NAS FEES RECORDS`
 
     window.open(
-      url,
+      `https://wa.me/91${selectedStudent.phone}?text=${encodeURIComponent(message)}`,
       '_blank'
     )
   }
 
-  // 🔥 ONLY CURRENT MONTHS
-  const totalPending =
-    selectedStudent
-      ? visibleMonths.reduce(
-          (
-            sum,
-            {
-              month,
-              year
-            }
-          ) => {
-
-            const fee =
-              getMonthFee(
-                month,
-                year
-              )
-
-            const amount =
-              fee?.amount ||
-              getStudentFee(
-                selectedStudent
-              )
-
-            if (
-              !fee ||
-              fee.status ===
-                'pending'
-            ) {
-              return (
-                sum +
-                amount
-              )
-            }
-
-            return sum
-          },
-          0
-        )
-      : 0
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white flex flex-col md:flex-row">
 
-      <div className="w-full md:w-[300px] bg-black/10 backdrop-blur-lg border-r border-white/10 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#0a0a0f] via-[#1a0033] to-[#0f001a] flex flex-col md:flex-row text-white">
+
+      <div className="w-full md:w-80 glass p-6 border-r border-white/10 min-h-screen">
 
         <button
           onClick={() =>
-            router.push(
-              '/admin/dashboard'
-            )
+            router.push('/admin/dashboard')
           }
-          className="mb-5 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-xl text-sm"
+          className="mb-6 glass px-5 py-3 rounded-2xl hover:bg-white/10"
         >
-          ← Back
+          ← Back to Dashboard
         </button>
 
-        <div className="mb-6">
+        <h2 className="text-2xl font-bold mb-6">
+          Select Class
+        </h2>
 
-          <label className="block text-sm mb-2 text-white/70">
-            Select Class
-          </label>
+        <select
+          value={selectedClass}
+          onChange={(e) => {
 
-          <select
-            value={selectedClass}
-            onChange={(e) => {
+            setSelectedClass(
+              e.target.value
+            )
 
-              const cls =
-                e.target.value
-
-              setSelectedClass(
-                cls
+            const first =
+              students.find(
+                s =>
+                  s.class ===
+                  e.target.value
               )
 
-              const firstStudent =
-                students.find(
-                  (s) =>
-                    s.class ===
-                    cls
-                )
+            setSelectedStudent(
+              first || null
+            )
+          }}
+          className="w-full glass p-4 rounded-2xl outline-none text-white"
+        >
 
-              setSelectedStudent(
-                firstStudent ||
-                  null
-              )
-            }}
-            className="w-full bg-white/20 backdrop-blur-lg border border-white/20 rounded-xl p-3 text-white outline-none"
-          >
+          {[...new Set(
+            students.map(
+              s => s.class
+            )
+          )].map(cls => (
 
-            {uniqueClasses.map(
-              (cls) => (
-                <option
-                  key={cls}
-                  value={cls}
-                  className="text-black"
-                >
-                  Class {cls}
-                </option>
-              )
-            )}
+            <option
+              key={cls}
+              value={cls}
+              className="text-black"
+            >
+              Class {cls}
+            </option>
 
-          </select>
+          ))}
 
-        </div>
+        </select>
 
-        <h1 className="text-xl font-bold mb-3">
+        <h2 className="text-2xl font-bold mt-10 mb-4">
           Students
-        </h1>
+        </h2>
 
-        <div className="space-y-3 max-h-[500px] overflow-y-auto">
+        <div className="space-y-3 max-h-[60vh] overflow-auto pr-2">
 
-          {filteredStudents.map(
-            (student) => (
+          {students
+            .filter(
+              s =>
+                s.class === selectedClass
+            )
+            .map(student => (
+
               <div
-                key={
-                  student.id
-                }
+                key={student.id}
                 onClick={() =>
-                  setSelectedStudent(
-                    student
-                  )
+                  setSelectedStudent(student)
                 }
-                className={`p-3 rounded-xl cursor-pointer transition ${
-                  selectedStudent?.id ===
-                  student.id
-                    ? 'bg-white/25'
-                    : 'bg-white/10 hover:bg-white/20'
+                className={`glass p-4 rounded-2xl cursor-pointer transition-all ${
+                  selectedStudent?.id === student.id
+                    ? 'border border-cyan-400 bg-white/10'
+                    : 'hover:bg-white/5'
                 }`}
               >
 
-                <h2 className="text-lg font-semibold">
-                  {
-                    student.name
-                  }
-                </h2>
+                <h3 className="font-semibold">
+                  {student.name}
+                </h3>
 
-                <p className="text-sm text-white/70">
-                  Class{' '}
-                  {
-                    student.class
-                  }
+                <p className="text-sm text-white/60">
+                  Class {student.class}
                 </p>
 
               </div>
-            )
-          )}
+
+            ))}
 
         </div>
+
       </div>
 
-      <div className="flex-1 p-4 md:p-8">
+      <div className="flex-1 p-8">
 
         {selectedStudent && (
+
           <>
 
-            <div className="mb-8">
+            <div className="mb-10">
 
-              <h1 className="text-3xl md:text-5xl font-bold mb-2">
-                {
-                  selectedStudent.name
-                }
+              <h1 className="text-5xl font-bold">
+                {selectedStudent.name}
               </h1>
 
-              <p className="text-lg text-white/80 mb-3">
-                Class{' '}
-                {
-                  selectedStudent.class
-                }
+              <p className="text-2xl text-cyan-400 mt-2">
+                Class {selectedStudent.class}
               </p>
-
-              <div className="text-2xl font-bold text-yellow-300">
-                Total Pending:
-                ₹{
-                  totalPending
-                }
-              </div>
 
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
               {visibleMonths.map(
-                ({
-                  month,
-                  year
-                }) => {
+                ({ month, year }) => {
 
                   const fee =
-                    getMonthFee(
-                      month,
-                      year
-                    )
+                    getMonthFee(month, year)
+
+                  // 🔥 ALWAYS LIVE STUDENT FEE
+                  const amount =
+                    getStudentFee(selectedStudent)
 
                   const status =
-                    fee?.status ||
-                    'pending'
-
-                  const amount =
-                    fee?.amount ||
-                    getStudentFee(
-                      selectedStudent
-                    )
+                    fee?.status || 'pending'
 
                   return (
+
                     <div
                       key={`${month}-${year}`}
-                      className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 border border-white/10"
+                      className="glass p-8 rounded-3xl"
                     >
 
-                      <h2 className="text-2xl md:text-3xl font-bold mb-2">
+                      <h2 className="text-4xl font-bold">
+
                         {month}
+
+                        <span className="text-xl opacity-70">
+                          {' '}
+                          {year}
+                        </span>
+
                       </h2>
 
-                      <p className="text-sm text-white/60 mb-2">
-                        {year}
-                      </p>
-
-                      <p className="text-2xl font-bold mb-2">
+                      <p className="text-5xl font-bold mt-6">
                         ₹{amount}
                       </p>
 
-                      <p
-                        className={`font-bold mb-4 ${
-                          status ===
-                          'paid'
-                            ? 'text-green-300'
-                            : 'text-red-300'
-                        }`}
-                      >
+                      <p className={`text-xl mt-2 font-bold ${
+                        status === 'paid'
+                          ? 'text-emerald-400'
+                          : 'text-red-400'
+                      }`}>
+
                         {status.toUpperCase()}
+
                       </p>
 
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-3 mt-8">
 
                         <button
                           onClick={() =>
-                            markPaid(
-                              month,
-                              year
-                            )
+                            markPaid(month, year)
                           }
-                          className="bg-green-500 hover:bg-green-600 px-3 py-2 rounded-lg text-sm font-bold"
+                          className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 rounded-2xl font-bold transition"
                         >
-                          Paid
+                          Mark Paid
                         </button>
 
                         <button
                           onClick={() =>
-                            markPending(
-                              month,
-                              year
-                            )
+                            markPending(month, year)
                           }
-                          className="bg-red-500 hover:bg-red-600 px-3 py-2 rounded-lg text-sm font-bold"
+                          className="flex-1 py-4 bg-red-600 hover:bg-red-700 rounded-2xl font-bold transition"
                         >
-                          Pending
+                          Mark Pending
                         </button>
 
                         <button
@@ -608,21 +500,27 @@ export default function FeesPage() {
                               amount
                             )
                           }
-                          className="bg-blue-500 hover:bg-blue-600 px-3 py-2 rounded-lg text-sm font-bold"
+                          className="flex-1 py-4 bg-cyan-600 hover:bg-cyan-700 rounded-2xl font-bold transition"
                         >
-                          WhatsApp
+                          Send WhatsApp
                         </button>
 
                       </div>
+
                     </div>
+
                   )
                 }
               )}
 
             </div>
+
           </>
+
         )}
+
       </div>
+
     </div>
   )
 }
